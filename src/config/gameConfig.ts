@@ -1,9 +1,9 @@
 import { GameConfig, Level, LevelBasedScoring, PartLevel } from '@/types/Game';
 
 export const GAME_CONFIG: GameConfig = {
-  // Use full available viewport size for a true full-screen experience
-  width: typeof window !== 'undefined' ? window.innerWidth : 800,
-  height: typeof window !== 'undefined' ? window.innerHeight : 600,
+  // Fixed virtual canvas size (portrait 9:16). Phaser Scale Manager will fit/letterbox this on all devices
+  width: 360,
+  height: 640,
   gravity: 150, // Reduced from 300 for sand-like falling
   partSpeed: 80, // Slightly slower horizontal movement for better control
   maxParts: 10,

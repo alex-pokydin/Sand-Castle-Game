@@ -720,10 +720,17 @@ export class CastlePart extends Phaser.GameObjects.Rectangle {
         const existingData = existing.getPartData();
         const horizontalOverlap = Math.abs(existingData.x - this.partData.x) < (existingData.width + this.partData.width) / 2;
         
-        // Fixed Y-coordinate logic: existing part should be BELOW (higher Y) the current part
-        const isBelow = existingData.y > this.partData.y;
+        // Determine vertical relationship
+        const isBelow = existingData.y > this.partData.y; // existing part must be below current one
+
+        // Distance between centres on Y axis
         const verticalDistance = Math.abs(existingData.y - this.partData.y);
-        const isClose = verticalDistance < existingData.height + PLACEMENT_CONFIG.collisionTolerance;
+
+        // Compute the minimum distance at which the two rectangles would be
+        // just touching (half heights added together) and allow a small
+        // tolerance.
+        const minTouchDistance = (existingData.height + this.partData.height) / 2;
+        const isClose = verticalDistance <= minTouchDistance + PLACEMENT_CONFIG.collisionTolerance;
         
         
         
@@ -748,19 +755,25 @@ export class CastlePart extends Phaser.GameObjects.Rectangle {
   }
   
   /**
-   * Check if this part is close to the ground/bottom of screen
+   * Check if the bottom of this part is touching (or very close to) the ground line.
+   * We no longer use a “bottom-half of screen” heuristic because that allowed
+   * multiple level-1 parts to stack. Instead we compare the part’s bottom Y
+   * coordinate against the known ground top Y coordinate.
    */
   private isPartOnGround(): boolean {
     if (!this.scene) return false;
-    
-    // For debugging: Let's be very generous and accept any part in bottom half of screen
-    const sceneHeight = this.scene.scale.height;
-    const isInBottomHalf = this.y > sceneHeight * 0.5; // Bottom 50% of screen
-    
-    
-    
-    // TEMPORARY: Accept any part in bottom half of screen
-    return isInBottomHalf;
+
+    // In GameScene the ground sprite is created with height 50 and its centre
+    // positioned at  (sceneHeight - 25).
+    const GROUND_HEIGHT = 50;
+    const groundTopY = this.scene.scale.height - GROUND_HEIGHT; // top edge of ground sprite
+
+    // Bottom Y of the rectangular part (this.y is centre)
+    const partBottomY = this.y + this.height / 2;
+
+    const tolerance = PLACEMENT_CONFIG.collisionTolerance; // pixels
+
+    return Math.abs(partBottomY - groundTopY) <= tolerance;
   }
   
   /**
