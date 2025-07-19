@@ -1,5 +1,7 @@
 import { Game, AUTO } from 'phaser';
+import { MenuScene } from '@/scenes/MenuScene';
 import { GameScene } from '@/scenes/GameScene';
+import { GameOverScene } from '@/scenes/GameOverScene';
 import { GAME_CONFIG, PHYSICS_CONFIG } from '@/config/gameConfig';
 
 // Phaser game configuration
@@ -29,7 +31,7 @@ const config: Phaser.Types.Core.GameConfig = {
       height: 1080
     }
   },
-  scene: [GameScene]
+  scene: [MenuScene, GameScene, GameOverScene]
 };
 
 // Initialize the game

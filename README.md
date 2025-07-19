@@ -420,9 +420,6 @@ interface GameSession {
 - [ ] **Milestone**: Stacking 2-3 parts feels fun and stable
 
 ### Game Structure: "Build the Loop"
-- [ ] Create 5 simple levels with different target shapes
-- [ ] Add level progression and win/lose conditions
-- [ ] Score system and local progress saving
 - [ ] Multi-language support (English, Ukrainian)
 - [ ] Simple UI for kids (big buttons, clear feedback)
 - [ ] Mobile optimization and touch improvements

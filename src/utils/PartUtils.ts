@@ -11,13 +11,15 @@ export function getCastleState(droppedParts: CastlePart[]): CastleState {
   let maxLevel = 0;
 
   droppedParts.forEach((part) => {
-    const partLevel = part.getPartLevel();
-    maxLevel = Math.max(maxLevel, partLevel);
+    if (part && part.scene && part.active) {
+      const partLevel = part.getPartLevel();
+      maxLevel = Math.max(maxLevel, partLevel);
 
-    if (!partsByLevel.has(partLevel)) {
-      partsByLevel.set(partLevel, []);
+      if (!partsByLevel.has(partLevel)) {
+        partsByLevel.set(partLevel, []);
+      }
+      partsByLevel.get(partLevel)!.push(part.getPartData());
     }
-    partsByLevel.get(partLevel)!.push(part.getPartData());
   });
 
   return {

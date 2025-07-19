@@ -287,6 +287,9 @@ export class CastlePart extends Phaser.GameObjects.Rectangle {
    * Update graphics and level display position when part moves
    */
   private updatePositions(): void {
+    if (!this.scene || !this.active) return;
+
+    // Update custom graphics position
     if (this.customGraphics) {
       this.customGraphics.setPosition(this.x - this.width / 2, this.y - this.height / 2);
     }
@@ -296,7 +299,7 @@ export class CastlePart extends Phaser.GameObjects.Rectangle {
   }
   
   public moveHorizontally(speed: number, deltaTime: number): void {
-    if (!this.isDropped) {
+    if (!this.isDropped && this.scene && this.active) {
       this.x += speed * deltaTime;
       
       // Bounce off screen edges
@@ -665,10 +668,25 @@ export class CastlePart extends Phaser.GameObjects.Rectangle {
   }
   
   public getPartData(): CastlePartData {
+    // If the GameObject has already been destroyed its internal transform may be undefined.
+    // Accessing `this.x` or `this.y` would then throw. Guard against that so utility
+    // functions can still iterate over stale references without crashing.
+    let currentX = this.partData.x;
+    let currentY = this.partData.y;
+    try {
+      // `x` / `y` getters can throw if transform is missing
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      currentX = (this as any).x ?? currentX;
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      currentY = (this as any).y ?? currentY;
+    } catch {
+      // ignore – we’ll fall back to stored values
+    }
+
     return {
       ...this.partData,
-      x: this.x,
-      y: this.y,
+      x: currentX,
+      y: currentY,
       velocity: this.matterBody ? {
         x: this.matterBody.velocity.x,
         y: this.matterBody.velocity.y

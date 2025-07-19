@@ -5,6 +5,8 @@ import { GameState, GroundViolation } from '@/types/Game';
 import { StabilityManager } from '@/objects/StabilityManager';
 import { AudioManager } from '@/utils/AudioManager';
 import { getAvailablePartLevels, getPartWidth, getPartHeight } from '@/utils/PartUtils';
+import { tSync, initI18n, onLanguageChange, offLanguageChange } from '@/i18n';
+import { supportsVibration } from '@/utils/DeviceUtils';
 
 export class GameScene extends Scene {
   private currentPart?: CastlePart;
@@ -33,13 +35,14 @@ export class GameScene extends Scene {
   private totalSuccessText?: Phaser.GameObjects.Text;
   private rewardCountText?: Phaser.GameObjects.Text;
   private wrongLevelText?: Phaser.GameObjects.Text;
+  private languageChangeHandler?: (lang: any) => void;
 
-  
+
   constructor() {
     super({ key: 'GameScene' });
     this.stabilityManager = new StabilityManager();
     this.audioManager = AudioManager.getInstance();
-    
+
     this.gameState = {
       currentLevel: 1,
       score: 0,
@@ -49,26 +52,47 @@ export class GameScene extends Scene {
       isFirstPart: true // Start with the first part
     };
   }
-  
-  create(): void {
+
+  async create(): Promise<void> {
+    // Initialize i18n system
+    await initI18n();
+
+    // Subscribe to language changes to update UI
+    this.languageChangeHandler = () => {
+      // Only update if scene is active to avoid calling on destroyed objects
+      if (this.scene.isActive()) {
+        this.updateTexts();
+      }
+    };
+    onLanguageChange(this.languageChangeHandler);
+
     // Load audio
     this.audioManager.loadBasicSounds();
-    
+
     // Setup physics first with proper configuration
     this.setupPhysics();
-    
+
     this.createBackground();
     this.createUI();
     this.setupInput();
+    this.setupMobileOptimizations();
     this.spawnNextPart();
   }
-  
+
+  shutdown(): void {
+    // Unsubscribe language change listener
+    if (this.languageChangeHandler) {
+      offLanguageChange(this.languageChangeHandler);
+      this.languageChangeHandler = undefined;
+    }
+  }
+
   private createBackground(): void {
     // Create simple gradient background
     const graphics = this.add.graphics();
     graphics.fillGradientStyle(COLORS.SKY, COLORS.SKY, COLORS.SAND_LIGHT, COLORS.SAND_LIGHT);
     graphics.fillRect(0, 0, this.scale.width, this.scale.height);
-    
+
     // Add simple ground line
     const ground = this.add.rectangle(
       this.scale.width / 2,
@@ -79,81 +103,134 @@ export class GameScene extends Scene {
     );
     ground.setStrokeStyle(2, COLORS.SAND_DARK);
   }
-  
+
   private createUI(): void {
-    // Level indicator
-    this.levelText = this.add.text(20, 20, `Level: ${this.gameState.currentLevel}`, {
-      fontSize: '24px',
+    // Kid-friendly UI styling
+    const primaryTextStyle = {
+      fontSize: '28px',
       color: '#2C3E50',
-      fontFamily: 'Arial'
-    });
-    
-    // Score display
-    this.scoreText = this.add.text(20, 60, `Score: ${this.gameState.score}`, {
-      fontSize: '20px',
+      fontFamily: 'Arial, sans-serif',
+      fontStyle: 'bold',
+      stroke: '#FFFFFF',
+      strokeThickness: 2
+    };
+
+    const secondaryTextStyle = {
+      fontSize: '22px',
       color: '#2C3E50',
-      fontFamily: 'Arial'
-    });
-    
+      fontFamily: 'Arial, sans-serif',
+      stroke: '#FFFFFF',
+      strokeThickness: 1
+    };
+
+    const statsTextStyle = {
+      fontSize: '18px',
+      color: '#7F8C8D',
+      fontFamily: 'Arial, sans-serif'
+    };
+
+    // Level indicator - larger and more prominent
+    this.levelText = this.add.text(20, 20, tSync('Level {{level}}', { level: this.gameState.currentLevel }), primaryTextStyle);
+
+    // Score display - colorful and kid-friendly
+    this.scoreText = this.add.text(20, 60, tSync('Score: {{score}}', { score: this.gameState.score }), secondaryTextStyle);
+
     // Parts Left display (remaining parts to complete current level)
     const initialLevel = LEVELS[this.currentLevelIndex];
     const initialPartsLeft = initialLevel ? initialLevel.targetParts : 0;
 
-    this.livesText = this.add.text(20, 100, `Parts Left: ${initialPartsLeft}`, {
-      fontSize: '20px',
-      color: '#E74C3C',
-      fontFamily: 'Arial'
+    this.livesText = this.add.text(20, 100, tSync('Target: {{target}} parts', { target: initialPartsLeft }), {
+      ...secondaryTextStyle,
+      color: '#E67E22' // Orange color for target
     });
 
-    // NEW statistics display
-    this.totalSuccessText = this.add.text(20, 140, `Total Installed: 0`, {
-      fontSize: '18px',
-      color: '#2C3E50',
-      fontFamily: 'Arial'
-    });
+    // Statistics display (smaller and less prominent)
+    this.totalSuccessText = this.add.text(20, 180, `Total Installed: 0`, statsTextStyle);
+    this.rewardCountText = this.add.text(20, 210, `Castles Rewarded: 0`, statsTextStyle);
+    this.wrongLevelText = this.add.text(20, 240, `Wrong Parts: 0`, statsTextStyle);
 
-    this.rewardCountText = this.add.text(20, 170, `Castles Rewarded: 0`, {
-      fontSize: '18px',
-      color: '#2C3E50',
-      fontFamily: 'Arial'
-    });
-
-    this.wrongLevelText = this.add.text(20, 200, `Wrong Parts (Lvl): 0`, {
-      fontSize: '18px',
-      color: '#E74C3C',
-      fontFamily: 'Arial'
-    });
-    
-    // Instructions
+    // Instructions - clear and encouraging
     this.instructionText = this.add.text(
       this.scale.width / 2,
       this.scale.height - 100,
-      'Tap/Click to drop castle part\nOnly first part can touch ground!',
+      tSync('Tap anywhere to drop the moving part') + '\n' + tSync('Level 1 parts go on the ground'),
       {
-        fontSize: '16px',
+        fontSize: '18px',
         color: '#34495E',
-        fontFamily: 'Arial',
-        align: 'center'
+        fontFamily: 'Arial, sans-serif',
+        align: 'center',
+        backgroundColor: '#FFFFFF',
+        padding: { x: 10, y: 8 },
+        stroke: '#BDC3C7',
+        strokeThickness: 1
       }
     );
     this.instructionText.setOrigin(0.5);
+
+    // Add a pause button in top-right corner
+    this.createPauseButton();
   }
-  
+
+  private createPauseButton(): void {
+    const pauseButton = this.add.container(this.scale.width - 60, 40);
+
+    // Button background
+    const bg = this.add.circle(0, 0, 25, 0x3498DB);
+    bg.setStrokeStyle(3, 0xFFFFFF);
+
+    // Pause icon (two vertical rectangles)
+    const pauseIcon1 = this.add.rectangle(-6, 0, 4, 20, 0xFFFFFF);
+    const pauseIcon2 = this.add.rectangle(6, 0, 4, 20, 0xFFFFFF);
+
+    pauseButton.add([bg, pauseIcon1, pauseIcon2]);
+    pauseButton.setSize(50, 50);
+    pauseButton.setInteractive();
+
+    // Pause functionality
+    pauseButton.on('pointerdown', () => {
+      console.log('Pause button clicked - pausing GameScene and launching MenuScene');
+      // Pause and hide the GameScene
+      this.scene.pause();
+      this.input.enabled = false; // Disable input when pausing
+      this.cameras.main.setVisible(false);
+      console.log('GameScene paused, launching MenuScene with isPaused: true');
+      this.scene.launch('MenuScene', { isPaused: true }); // Pass pause context to MenuScene
+    });
+
+    // Hover effects
+    pauseButton.on('pointerover', () => {
+      pauseButton.setScale(1.1);
+    });
+
+    pauseButton.on('pointerout', () => {
+      pauseButton.setScale(1);
+    });
+  }
+
   private setupInput(): void {
     // Handle both touch and mouse input
-    this.input.on('pointerdown', this.dropCurrentPart, this);
-    
+    this.input.on('pointerdown', (_pointer: Phaser.Input.Pointer) => {
+      // Only drop if game is active and input is enabled
+      if (this.gameState.isGameActive && this.input.enabled) {
+        this.dropCurrentPart();
+      }
+    }, this);
+
     // Keyboard input for desktop testing
-    this.input.keyboard?.on('keydown-SPACE', this.dropCurrentPart, this);
+    this.input.keyboard?.on('keydown-SPACE', () => {
+      if (this.gameState.isGameActive && this.input.enabled) {
+        this.dropCurrentPart();
+      }
+    }, this);
   }
-  
+
   private setupPhysics(): void {
     // Configure Matter.js physics engine for enhanced sand-like behavior
     this.matter.world.setGravity(0, PHYSICS_CONFIG.gravity);
-    
+
     // Configure world bounds with high friction walls
     this.matter.world.setBounds(0, 0, this.scale.width, this.scale.height, 32, true, true, true, false);
-    
+
     // Set high friction for world bounds to prevent parts from sliding along walls
     const worldBounds = this.matter.world.walls;
     if (worldBounds.left) {
@@ -168,11 +245,11 @@ export class GameScene extends Scene {
       this.matter.body.set(worldBounds.top, 'friction', 1.0);
       this.matter.body.set(worldBounds.top, 'frictionStatic', 1.5);
     }
-    
+
     // Create enhanced static ground for collision
     const groundY = this.scale.height - 25;
     const groundHeight = 50;
-    
+
     this.groundSprite = this.add.rectangle(
       this.scale.width / 2,
       groundY,
@@ -180,9 +257,9 @@ export class GameScene extends Scene {
       groundHeight,
       COLORS.SAND_DARK
     );
-    
+
     // Add Matter.js physics to ground with enhanced sand-friendly properties
-    this.matter.add.gameObject(this.groundSprite, { 
+    this.matter.add.gameObject(this.groundSprite, {
       isStatic: true,
       friction: PHYSICS_CONFIG.ground.friction,
       frictionStatic: PHYSICS_CONFIG.ground.frictionStatic,
@@ -198,33 +275,33 @@ export class GameScene extends Scene {
         group: 0
       }
     });
-    
+
     // Configure Matter.js engine for better stability
     this.matter.world.engine.constraintIterations = 3; // More constraint solving iterations
     this.matter.world.engine.positionIterations = 8; // More position iterations for stability
     this.matter.world.engine.velocityIterations = 6; // Better velocity resolution
-    
+
     // Enable collision events for enhanced stability tracking
     this.matter.world.on('collisionstart', this.onCollisionStart, this);
     this.matter.world.on('collisionend', this.onCollisionEnd, this);
   }
-  
+
   private onCollisionStart(event: Phaser.Physics.Matter.Events.CollisionStartEvent): void {
     // Handle collision start for sound effects and ground detection
     const pairs = event.pairs;
-    
+
     for (const pair of pairs) {
       // Check if collision involves castle parts
       const bodyA = pair.bodyA.gameObject as CastlePart;
       const bodyB = pair.bodyB.gameObject as CastlePart;
-      
+
       // Check for ground collisions
       const isGroundCollision = this.checkGroundCollision(pair.bodyA, pair.bodyB);
-      
+
       if (bodyA instanceof CastlePart || bodyB instanceof CastlePart) {
         // Play soft collision sound for part-to-part or part-to-ground contact
         this.audioManager.playDropSound();
-        
+
         // Handle ground collision if detected
         if (isGroundCollision) {
           const castlePart = bodyA instanceof CastlePart ? bodyA : bodyB;
@@ -246,10 +323,10 @@ export class GameScene extends Scene {
     if (!part || !part.body || !part.body.position) {
       return; // Skip if part is already destroyed or invalid
     }
-    
+
     const partIndex = this.droppedParts.indexOf(part);
     if (partIndex === -1) return; // Part not in array
-    
+
     // NEW LEVEL-BASED RULES: Level 1 parts are allowed on ground
     if (part.getPartLevel() === 1) {
       // Level 1 parts are allowed on ground - no penalty
@@ -268,7 +345,7 @@ export class GameScene extends Scene {
     if (!part || !part.body || part.body.position === undefined) {
       return;
     }
-    
+
     // Note: This method is now mainly for safety checks - actual ground detection happens via collision
   }
 
@@ -276,7 +353,7 @@ export class GameScene extends Scene {
     // Check if this part has already been penalized to avoid multiple penalties
     const partId = part.getPartData().id;
     const alreadyPenalized = this.groundViolations.some(violation => violation.partId === partId);
-    
+
     if (alreadyPenalized) {
       return; // Don't apply penalty multiple times to the same part
     }
@@ -393,27 +470,27 @@ export class GameScene extends Scene {
       });
     }
   }
-  
+
   private onCollisionEnd(_event: Phaser.Physics.Matter.Events.CollisionEndEvent): void {
     // Handle collision end if needed for stability calculations
   }
-  
+
   private spawnNextPart(): void {
     if (!this.gameState.isGameActive) return;
-    
+
     const currentLevel = LEVELS[this.currentLevelIndex] || generateLevel(this.currentLevelIndex + 1);
     if (!currentLevel) return;
-    
+
     // Smart spawning: determine available part levels based on current castle (now via PartUtils)
     const availableLevels = getAvailablePartLevels(this.droppedParts);
-    
+
     // Randomly select a part level from available options
     const partLevel = availableLevels[Math.floor(Math.random() * availableLevels.length)];
-    
+
     // Create new part at top of screen
     const partWidth = getPartWidth(partLevel);
     const partHeight = getPartHeight(partLevel);
-    
+
     this.currentPart = new CastlePart(
       this,
       this.scale.width / 2,
@@ -422,22 +499,22 @@ export class GameScene extends Scene {
       partHeight,
       partLevel
     );
-    
+
     // Reset movement direction randomly
     this.direction = Math.random() > 0.5 ? 1 : -1;
   }
-  
+
   // NOTE: `getAvailablePartLevels` has been extracted to PartUtils.
-  
+
   // NOTE: `getCastleState` has been extracted to PartUtils.
-  
+
   // NOTE: `getPartWidth` moved to PartUtils.
-  
+
   // NOTE: `getPartHeight` moved to PartUtils.
-  
+
   private dropCurrentPart(): void {
     if (!this.currentPart || !this.gameState.isGameActive) return;
-    
+
     // Drop the current part
     this.currentPart.drop(GAME_CONFIG.gravity);
     const droppedPart = this.currentPart;
@@ -445,12 +522,12 @@ export class GameScene extends Scene {
     this.totalPartsDropped++;
     this.overallPartsPlaced++; // NEW: increment overall parts counter
     this.currentPart = undefined;
-    
+
     // New placement validation after parts have more time to settle
     this.time.delayedCall(2500, () => {
       this.validatePartPlacement(droppedPart);
     });
-    
+
     // Ground violation check still happens, but only for parts that weren't already destroyed
     this.time.delayedCall(2500, () => {
       // Only check if part still exists (wasn't destroyed by placement validation)
@@ -458,7 +535,7 @@ export class GameScene extends Scene {
         this.checkPartForGroundViolation(droppedPart);
       }
     });
-    
+
     // Check if level is complete after this drop
     const currentLevel = LEVELS[this.currentLevelIndex];
     // Finish level when enough successful installations done, independent of reward clears
@@ -469,7 +546,7 @@ export class GameScene extends Scene {
           // Calculate stability points
           const stabilityPoints = droppedPart.getStabilityPoints();
           this.gameState.score += stabilityPoints;
-          
+
           // Only check for collapse if we have multiple parts and they've had time to settle
           if (this.droppedParts.length >= 2) {
             const allPartData = this.droppedParts.map(part => part.getPartData());
@@ -478,23 +555,23 @@ export class GameScene extends Scene {
               return;
             }
           }
-          
+
           this.updateUI();
-          
+
           // Complete the level
           this.completeLevel();
         }
       });
     } else {
       // Continue with current level - spawn next part
-      
+
       // Wait longer for part to settle and then check for stability and score
       this.time.delayedCall(3000, () => {
         if (droppedPart.isPartDropped()) {
           // Calculate stability points
           const stabilityPoints = droppedPart.getStabilityPoints();
           this.gameState.score += stabilityPoints;
-          
+
           // Only check for collapse if we have multiple parts and they've had time to settle
           if (this.droppedParts.length >= 2) {
             const allPartData = this.droppedParts.map(part => part.getPartData());
@@ -503,39 +580,39 @@ export class GameScene extends Scene {
               return;
             }
           }
-          
+
           this.updateUI();
         }
       });
-      
+
       // Spawn next part after a short delay
       this.time.delayedCall(1000, () => {
         this.spawnNextPart();
       });
     }
   }
-  
+
   /**
    * Validate if a dropped part has correct level placement
    */
   private validatePartPlacement(part: CastlePart): void {
     if (!part || !part.isPartDropped()) return;
-    
+
     // Safety check: ensure part still has valid physics body
     if (!part.body || !part.body.position) {
       return;
     }
-    
+
     // Get all other parts (excluding the one being validated) that are still valid
     const otherParts = this.droppedParts.filter(p => {
       return p !== part && p.body && p.body.position; // Only include parts with valid physics
     });
-    
 
-    
+
+
     // Validate placement
     const placementResult = part.validatePlacement(otherParts);
-    
+
     if (!placementResult.valid) {
       // Wrong placement - destroy part and apply penalty
       this.handleWrongPlacement(part, placementResult);
@@ -545,7 +622,7 @@ export class GameScene extends Scene {
       this.handleCorrectPlacement(part, placementResult);
     }
   }
-  
+
   /**
    * Handle wrong part placement
    */
@@ -558,53 +635,53 @@ export class GameScene extends Scene {
     //   penaltyApplied: SCORING_CONFIG.wrongPlacementPenalty,
     //   timestamp: Date.now()
     // };
-    
+
     // Apply score penalty
     this.gameState.score = Math.max(0, this.gameState.score - SCORING_CONFIG.wrongPlacementPenalty);
-    
+
     // Show penalty feedback
     this.showPenaltyFeedback(SCORING_CONFIG.wrongPlacementPenalty, "Wrong Level!");
-    
+
     // Play penalty sound
     this.audioManager.playCollapseSound();
-    
+
     // Remove part from dropped parts array
     const partIndex = this.droppedParts.indexOf(part);
     if (partIndex > -1) {
       this.droppedParts.splice(partIndex, 1);
     }
-    
+
     // Destroy the part with effect
     this.destroyPartWithEffect(part);
-    
+
     // Update UI
     this.updateUI();
 
     // NEW: increment wrong parts counter for current level
     this.wrongPartsCurrentLevel++;
   }
-  
+
   /**
    * Handle correct part placement
    */
   private handleCorrectPlacement(part: CastlePart, _placementResult: any): void {
     // Give placement bonus
     const placementBonus = SCORING_CONFIG.placementBonus;
-    
+
     // Give level multiplier bonus (higher levels worth more points)
     const levelMultiplier = part.getPartLevel() * SCORING_CONFIG.levelMultiplier;
     const levelBonus = SCORING_CONFIG.baseScore * levelMultiplier;
-    
+
     // Calculate total bonus
     const totalBonus = placementBonus + levelBonus;
     this.gameState.score += totalBonus;
-    
+
     // Show positive feedback
     this.showSuccessFeedback(totalBonus, `Level ${part.getPartLevel()}!`);
-    
+
     // Play success sound
     this.audioManager.playDropSound();
-    
+
     // Update counters
     this.totalSuccessfulPlaced++;
     this.successfulPartsInstalled++;
@@ -655,7 +732,7 @@ export class GameScene extends Scene {
     // Update UI to reflect new parts left / score
     this.updateUI();
   }
-  
+
   /**
    * Show success feedback to player
    */
@@ -672,7 +749,7 @@ export class GameScene extends Scene {
       }
     );
     successText.setOrigin(0.5);
-    
+
     // Animate success text
     this.tweens.add({
       targets: successText,
@@ -685,13 +762,13 @@ export class GameScene extends Scene {
       }
     });
   }
-  
+
   private handleCastleCollapse(): void {
     this.gameState.isGameActive = false;
-    
+
     // Play collapse sound
     this.audioManager.playCollapseSound();
-    
+
     // Show collapse message
     const collapseText = this.add.text(
       this.scale.width / 2,
@@ -705,23 +782,23 @@ export class GameScene extends Scene {
       }
     );
     collapseText.setOrigin(0.5);
-    
+
     // Restart level after delay
     this.time.delayedCall(3000, () => {
       this.restartLevel();
     });
   }
-  
+
   private restartLevel(): void {
     // Clear dropped parts
     this.droppedParts.forEach(part => part.destroy());
     this.droppedParts = [];
-    
+
     // Reset game state
     this.gameState.isGameActive = true;
     this.gameState.lives--;
     this.gameState.isFirstPart = true; // Reset first part flag
-    
+
     // Clear ground violations and reset counters
     this.groundViolations = [];
     this.totalPartsDropped = 0;
@@ -736,28 +813,42 @@ export class GameScene extends Scene {
       this.updateUI();
     }
   }
-  
+
   private gameOver(): void {
-    const gameOverText = this.add.text(
-      this.scale.width / 2,
-      this.scale.height / 2,
-      `Game Over!\nFinal Score: ${this.gameState.score}\nTotal Parts Placed: ${this.overallPartsPlaced}`,
-      {
-        fontSize: '28px',
-        color: '#E74C3C',
-        fontFamily: 'Arial',
-        align: 'center'
-      }
-    );
-    gameOverText.setOrigin(0.5);
+    this.gameState.isGameActive = false;
+
+    // Save high score
+    this.saveHighScore();
+
+    // Transition to GameOverScene with game data
+    this.cameras.main.fadeOut(500, 0, 0, 0);
+
+    this.cameras.main.once('camerafadeoutcomplete', () => {
+      this.scene.start('GameOverScene', {
+        score: this.gameState.score,
+        level: this.gameState.currentLevel,
+        isVictory: false,
+        castlesBuilt: this.rewardedCastleCount,
+        perfectDrops: 0 // Can be enhanced later to track perfect drops
+      });
+    });
   }
-  
+
   private completeLevel(): void {
     // Play level complete sound
     this.audioManager.playLevelCompleteSound();
 
     // Award bonus for completing the level
     this.gameState.score += 100;
+
+    // Save high score
+    this.saveHighScore();
+
+    // For higher levels (5+), show victory screen instead of continuing
+    if (this.gameState.currentLevel >= 5) {
+      this.showVictoryScreen();
+      return;
+    }
 
     // Advance to next level index
     this.currentLevelIndex++;
@@ -775,32 +866,49 @@ export class GameScene extends Scene {
     // Proceed to the next level setup
     this.nextLevel();
   }
-  
+
+  private showVictoryScreen(): void {
+    this.gameState.isGameActive = false;
+
+    // Transition to GameOverScene with victory data
+    this.cameras.main.fadeOut(500, 0, 0, 0);
+
+    this.cameras.main.once('camerafadeoutcomplete', () => {
+      this.scene.start('GameOverScene', {
+        score: this.gameState.score,
+        level: this.gameState.currentLevel,
+        isVictory: true,
+        castlesBuilt: this.rewardedCastleCount,
+        perfectDrops: 0 // Can be enhanced later to track perfect drops
+      });
+    });
+  }
+
   private nextLevel(): void {
     // Clear dropped parts
     this.droppedParts.forEach(part => part.destroy());
     this.droppedParts = [];
-    
+
     // Ensure game remains active
     this.gameState.isGameActive = true;
     this.gameState.isFirstPart = true; // Reset first part flag for new level
-    
+
     // Clear ground violations and reset counters
     this.groundViolations = [];
     this.totalPartsDropped = 0;
     this.successfulPartsInstalled = 0; // reset for new level
     this.wrongPartsCurrentLevel = 0;
     // totalSuccessfulPlaced and rewardedCastleCount persist across levels
-    
+
     // Clear any existing current part
     if (this.currentPart) {
       this.currentPart.destroy();
       this.currentPart = undefined;
     }
-    
+
     // Increase part speed slightly
     this.partSpeed += 10;
-    
+
     // Show level complete message
     const levelCompleteText = this.add.text(
       this.scale.width / 2,
@@ -814,30 +922,30 @@ export class GameScene extends Scene {
       }
     );
     levelCompleteText.setOrigin(0.5);
-    
+
     // Continue to next level after delay
     this.time.delayedCall(2000, () => {
       levelCompleteText.destroy();
       this.spawnNextPart();
     });
-    
+
     this.updateUI();
   }
-  
+
   private updateUI(): void {
     if (this.levelText) {
-      this.levelText.setText(`Level: ${this.gameState.currentLevel}`);
+      this.levelText.setText(tSync('Level {{level}}', { level: this.gameState.currentLevel }));
     }
     if (this.scoreText) {
-      this.scoreText.setText(`Score: ${this.gameState.score}`);
+      this.scoreText.setText(tSync('Score: {{score}}', { score: this.gameState.score }));
     }
     if (this.livesText) {
       const currentLevel = LEVELS[this.currentLevelIndex];
       const partsLeft = currentLevel ? Math.max(0, currentLevel.targetParts - this.successfulPartsInstalled) : 0;
-      this.livesText.setText(`Parts Left: ${partsLeft}`);
+      this.livesText.setText(tSync('Parts Remaining: {{count}}', { count: partsLeft }));
     }
 
-    // NEW: update stats texts
+    // Update stats texts
     if (this.totalSuccessText) {
       this.totalSuccessText.setText(`Total Installed: ${this.totalSuccessfulPlaced}`);
     }
@@ -845,27 +953,114 @@ export class GameScene extends Scene {
       this.rewardCountText.setText(`Castles Rewarded: ${this.rewardedCastleCount}`);
     }
     if (this.wrongLevelText) {
-      this.wrongLevelText.setText(`Wrong Parts (Lvl): ${this.wrongPartsCurrentLevel}`);
+      this.wrongLevelText.setText(`Wrong Parts: ${this.wrongPartsCurrentLevel}`);
     }
   }
-  
+
   update(_time: number, delta: number): void {
+    // Re-enable input after a delay when resuming from pause
+    if (!this.input.enabled && this.gameState.isGameActive) {
+      this.time.delayedCall(1000, () => {
+        this.input.enabled = true;
+      });
+    }
+
     // Move current part horizontally
-    if (this.currentPart && this.gameState.isGameActive) {
+    if (this.currentPart && this.currentPart.active && this.gameState.isGameActive) {
       this.currentPart.moveHorizontally(this.direction * this.partSpeed, delta / 1000);
-      
+
       // Reverse direction at screen edges
-      if (this.currentPart.x <= this.currentPart.width / 2 || 
+      if (this.currentPart.x <= this.currentPart.width / 2 ||
           this.currentPart.x >= this.scale.width - this.currentPart.width / 2) {
         this.direction *= -1;
       }
     }
-    
+
     // Check stability of dropped parts (ground violations now handled by collision detection)
     this.droppedParts.forEach((part) => {
-      if (part && part.body) {
+      if (part && part.active && part.body) {
         part.checkStability();
       }
     });
+  }
+
+  private setupMobileOptimizations(): void {
+    // Add haptic feedback for mobile devices
+    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      const isTouchInput = (pointer as any).pointerType === 'touch' || (pointer.event as any)?.pointerType === 'touch';
+
+      if (isTouchInput && supportsVibration()) {
+        navigator.vibrate(50);
+      }
+
+      if (this.sound.locked) {
+        this.sound.unlock();
+      } else {
+        const ctx = (this.sound as any).context as AudioContext | undefined;
+        if (ctx && ctx.state === 'suspended') {
+          ctx.resume().catch(() => {/* ignore */});
+        }
+      }
+    });
+
+    // Handle orientation changes
+    this.scale.on('orientationchange', () => {
+      this.time.delayedCall(100, () => {
+        this.refreshLayout();
+      });
+    });
+
+    // Prevent default touch behaviors that might interfere with game
+    this.input.on('gameobjectdown', (pointer: Phaser.Input.Pointer) => {
+      pointer.event?.preventDefault();
+    });
+
+    // Add touch-friendly feedback
+    this.input.on('pointerover', () => {
+      this.input.setDefaultCursor('pointer');
+    });
+
+    this.input.on('pointerout', () => {
+      this.input.setDefaultCursor('default');
+    });
+  }
+
+  private updateTexts(): void {
+    // Update all UI text elements when language changes
+    if (this.instructionText) {
+      this.instructionText.setText(
+        tSync('Tap anywhere to drop the moving part') + '\n' +
+        tSync('Level 1 parts go on the ground')
+      );
+    }
+
+    // Update other text elements
+    this.updateUI();
+  }
+
+  private refreshLayout(): void {
+    // Refresh layout for orientation changes
+    // This helps ensure the game remains playable across different orientations
+    const newWidth = this.scale.width;
+    const newHeight = this.scale.height;
+
+    // Update instruction text position
+    if (this.instructionText) {
+      this.instructionText.setPosition(newWidth / 2, newHeight - 100);
+    }
+
+    // Update UI positions if needed
+    // Other UI elements are positioned relative to screen edges so they should adapt automatically
+  }
+
+  private saveHighScore(): void {
+    try {
+      const currentHighScore = parseInt(localStorage.getItem('sand-castle-high-score') || '0');
+      if (this.gameState.score > currentHighScore) {
+        localStorage.setItem('sand-castle-high-score', this.gameState.score.toString());
+      }
+    } catch (error) {
+      console.warn('Failed to save high score:', error);
+    }
   }
 } 
