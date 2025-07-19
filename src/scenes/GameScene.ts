@@ -22,6 +22,16 @@ export class GameScene extends Scene {
   private groundViolations: GroundViolation[] = [];
   private totalPartsDropped: number = 0; // Track total parts dropped including destroyed ones
   private groundSprite?: Phaser.GameObjects.Rectangle; // Reference to ground sprite for collision detection
+  private overallPartsPlaced: number = 0; // NEW: track total parts placed across entire run
+  private successfulPartsInstalled: number = 0; // NEW: count of valid placements in current level
+  private wrongPartsCurrentLevel: number = 0; // NEW: wrong placements in current level
+  private totalSuccessfulPlaced: number = 0; // NEW: cumulative successful placements across game
+  private rewardedCastleCount: number = 0; // NEW: total rewards triggered by level-6 clears
+
+  // UI text objects for new stats
+  private totalSuccessText?: Phaser.GameObjects.Text;
+  private rewardCountText?: Phaser.GameObjects.Text;
+  private wrongLevelText?: Phaser.GameObjects.Text;
 
   
   constructor() {
@@ -90,6 +100,25 @@ export class GameScene extends Scene {
 
     this.livesText = this.add.text(20, 100, `Parts Left: ${initialPartsLeft}`, {
       fontSize: '20px',
+      color: '#E74C3C',
+      fontFamily: 'Arial'
+    });
+
+    // NEW statistics display
+    this.totalSuccessText = this.add.text(20, 140, `Total Installed: 0`, {
+      fontSize: '18px',
+      color: '#2C3E50',
+      fontFamily: 'Arial'
+    });
+
+    this.rewardCountText = this.add.text(20, 170, `Castles Rewarded: 0`, {
+      fontSize: '18px',
+      color: '#2C3E50',
+      fontFamily: 'Arial'
+    });
+
+    this.wrongLevelText = this.add.text(20, 200, `Wrong Parts (Lvl): 0`, {
+      fontSize: '18px',
       color: '#E74C3C',
       fontFamily: 'Arial'
     });
@@ -468,6 +497,7 @@ export class GameScene extends Scene {
     const droppedPart = this.currentPart;
     this.droppedParts.push(droppedPart);
     this.totalPartsDropped++;
+    this.overallPartsPlaced++; // NEW: increment overall parts counter
     this.currentPart = undefined;
     
     // New placement validation after parts have more time to settle
@@ -485,16 +515,10 @@ export class GameScene extends Scene {
     
     // Check if level is complete after this drop
     const currentLevel = LEVELS[this.currentLevelIndex];
-    if (currentLevel && this.totalPartsDropped >= currentLevel.targetParts) {
+    // Finish level when enough successful installations done, independent of reward clears
+    if (currentLevel && this.successfulPartsInstalled >= currentLevel.targetParts) {
       // Wait longer for parts to fully settle before completing level
       this.time.delayedCall(3000, () => {
-        // Check if we actually have enough valid parts (not destroyed by ground violations)
-        if (this.droppedParts.length < currentLevel.targetParts) {
-          // Not enough parts remaining - continue with current level
-          this.spawnNextPart();
-          return;
-        }
-        
         if (droppedPart.isPartDropped()) {
           // Calculate stability points
           const stabilityPoints = droppedPart.getStabilityPoints();
@@ -609,6 +633,9 @@ export class GameScene extends Scene {
     
     // Update UI
     this.updateUI();
+
+    // NEW: increment wrong parts counter for current level
+    this.wrongPartsCurrentLevel++;
   }
   
   /**
@@ -632,7 +659,54 @@ export class GameScene extends Scene {
     // Play success sound
     this.audioManager.playDropSound();
     
-    // Update UI
+    // Update counters
+    this.totalSuccessfulPlaced++;
+    this.successfulPartsInstalled++;
+
+    // NEW: special behaviour for level 6 parts
+    if (part.getPartLevel() === 6) {
+      this.handleLevelSixPlacement(part);
+    }
+
+    // Update UI at end (to reflect new counters)
+    this.updateUI();
+  }
+
+  // NEW: remove all parts situated under a correctly placed level-6 part and award bonus points
+  private handleLevelSixPlacement(levelSixPart: CastlePart): void {
+    // Identify parts that are physically below the level-6 part and horizontally overlapping
+    const partsToRemove = this.droppedParts.filter(p => {
+      const horizontallyAligned = Math.abs(p.x - levelSixPart.x) < (p.width + levelSixPart.width) / 2;
+      const belowOrSame = p.y >= levelSixPart.y; // include same Y to capture the level-6 part itself later
+      return horizontallyAligned && belowOrSame;
+    });
+
+    // Ensure the level-6 part itself is included (in case numeric comparisons excluded it)
+    if (!partsToRemove.includes(levelSixPart)) {
+      partsToRemove.push(levelSixPart);
+    }
+
+    if (partsToRemove.length === 0) return;
+
+    // Award bonus – generous reward to celebrate clearing (includes the level-6 part itself)
+    const bonusPerPart = SCORING_CONFIG.baseScore * 10;
+    const bonus = bonusPerPart * partsToRemove.length;
+    this.gameState.score += bonus;
+    this.showSuccessFeedback(bonus, `Level 6 Clear!`);
+
+    // Increase rewarded castle count
+    this.rewardedCastleCount++;
+
+    // Remove the parts with visual effect
+    partsToRemove.forEach(p => {
+      const idx = this.droppedParts.indexOf(p);
+      if (idx > -1) {
+        this.droppedParts.splice(idx, 1);
+      }
+      this.destroyPartWithEffect(p);
+    });
+
+    // Update UI to reflect new parts left / score
     this.updateUI();
   }
   
@@ -705,7 +779,10 @@ export class GameScene extends Scene {
     // Clear ground violations and reset counters
     this.groundViolations = [];
     this.totalPartsDropped = 0;
-    
+    this.successfulPartsInstalled = 0;
+    this.wrongPartsCurrentLevel = 0;
+    // totalSuccessfulPlaced and rewardedCastleCount persist across levels
+
     if (this.gameState.lives <= 0) {
       this.gameOver();
     } else {
@@ -718,7 +795,7 @@ export class GameScene extends Scene {
     const gameOverText = this.add.text(
       this.scale.width / 2,
       this.scale.height / 2,
-      `Game Over!\nFinal Score: ${this.gameState.score}`,
+      `Game Over!\nFinal Score: ${this.gameState.score}\nTotal Parts Placed: ${this.overallPartsPlaced}`,
       {
         fontSize: '28px',
         color: '#E74C3C',
@@ -765,6 +842,9 @@ export class GameScene extends Scene {
     // Clear ground violations and reset counters
     this.groundViolations = [];
     this.totalPartsDropped = 0;
+    this.successfulPartsInstalled = 0; // reset for new level
+    this.wrongPartsCurrentLevel = 0;
+    // totalSuccessfulPlaced and rewardedCastleCount persist across levels
     
     // Clear any existing current part
     if (this.currentPart) {
@@ -807,8 +887,19 @@ export class GameScene extends Scene {
     }
     if (this.livesText) {
       const currentLevel = LEVELS[this.currentLevelIndex];
-      const partsLeft = currentLevel ? Math.max(0, currentLevel.targetParts - this.droppedParts.length) : 0;
+      const partsLeft = currentLevel ? Math.max(0, currentLevel.targetParts - this.successfulPartsInstalled) : 0;
       this.livesText.setText(`Parts Left: ${partsLeft}`);
+    }
+
+    // NEW: update stats texts
+    if (this.totalSuccessText) {
+      this.totalSuccessText.setText(`Total Installed: ${this.totalSuccessfulPlaced}`);
+    }
+    if (this.rewardCountText) {
+      this.rewardCountText.setText(`Castles Rewarded: ${this.rewardedCastleCount}`);
+    }
+    if (this.wrongLevelText) {
+      this.wrongLevelText.setText(`Wrong Parts (Lvl): ${this.wrongPartsCurrentLevel}`);
     }
   }
   
