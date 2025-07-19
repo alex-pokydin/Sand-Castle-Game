@@ -30,6 +30,7 @@ sand-castle-game/
 │   │   └── StabilityManager.ts # Physics stability logic
 │   ├── utils/
 │   │   ├── AudioManager.ts   # Howler.js wrapper
+│   │   ├── PartUtils.ts      # Part spawning/sizing helpers
 │   │   └── FirebaseConfig.ts # Firebase setup
 │   └── assets/
 │       ├── images/           # Castle parts, backgrounds

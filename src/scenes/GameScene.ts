@@ -1,9 +1,10 @@
 import { Scene } from 'phaser';
 import { CastlePart } from '@/objects/CastlePart';
 import { GAME_CONFIG, LEVELS, COLORS, PHYSICS_CONFIG, SCORING_CONFIG, generateLevel } from '@/config/gameConfig';
-import { GameState, GroundViolation, PartLevel, CastleState } from '@/types/Game';
+import { GameState, GroundViolation } from '@/types/Game';
 import { StabilityManager } from '@/objects/StabilityManager';
 import { AudioManager } from '@/utils/AudioManager';
+import { getAvailablePartLevels, getPartWidth, getPartHeight } from '@/utils/PartUtils';
 
 export class GameScene extends Scene {
   private currentPart?: CastlePart;
@@ -403,15 +404,15 @@ export class GameScene extends Scene {
     const currentLevel = LEVELS[this.currentLevelIndex] || generateLevel(this.currentLevelIndex + 1);
     if (!currentLevel) return;
     
-    // Smart spawning: determine available part levels based on current castle
-    const availableLevels = this.getAvailablePartLevels();
+    // Smart spawning: determine available part levels based on current castle (now via PartUtils)
+    const availableLevels = getAvailablePartLevels(this.droppedParts);
     
     // Randomly select a part level from available options
     const partLevel = availableLevels[Math.floor(Math.random() * availableLevels.length)];
     
     // Create new part at top of screen
-    const partWidth = this.getPartWidth(partLevel);
-    const partHeight = this.getPartHeight(partLevel);
+    const partWidth = getPartWidth(partLevel);
+    const partHeight = getPartHeight(partLevel);
     
     this.currentPart = new CastlePart(
       this,
@@ -426,68 +427,13 @@ export class GameScene extends Scene {
     this.direction = Math.random() > 0.5 ? 1 : -1;
   }
   
-  /**
-   * Determine which part levels can be spawned based on current castle state
-   */
-  private getAvailablePartLevels(): PartLevel[] {
-    const castleState = this.getCastleState();
-    
-    // If no castle, only level 1 parts can be spawned
-    if (castleState.maxLevel === 0) {
-      return [1];
-    }
-    
-    // Can spawn parts from level 1 up to maxLevel + 1 (up to level 6)
-    const availableLevels: PartLevel[] = [];
-    for (let level = 1; level <= Math.min(castleState.maxLevel + 1, 6); level++) {
-      availableLevels.push(level as PartLevel);
-    }
-    
-    return availableLevels;
-  }
+  // NOTE: `getAvailablePartLevels` has been extracted to PartUtils.
   
-  /**
-   * Get current state of the castle
-   */
-  private getCastleState(): CastleState {
-    const partsByLevel = new Map<number, any[]>();
-    let maxLevel = 0;
-    
-    this.droppedParts.forEach(part => {
-      const partLevel = part.getPartLevel();
-      maxLevel = Math.max(maxLevel, partLevel);
-      
-      if (!partsByLevel.has(partLevel)) {
-        partsByLevel.set(partLevel, []);
-      }
-      partsByLevel.get(partLevel)!.push(part.getPartData());
-    });
-    
-    return {
-      maxLevel,
-      partsByLevel,
-      totalParts: this.droppedParts.length
-    };
-  }
+  // NOTE: `getCastleState` has been extracted to PartUtils.
   
-  private getPartWidth(partLevel: PartLevel): number {
-    // Base width that decreases as levels go higher (representing narrowing castle structure)
-    const baseWidth = 80;
-    return Math.max(40, baseWidth - (partLevel - 1) * 8); // Level 1: 80px, Level 6: 40px
-  }
+  // NOTE: `getPartWidth` moved to PartUtils.
   
-  private getPartHeight(partLevel: PartLevel): number {
-    // Height varies by level to create visual hierarchy
-    switch (partLevel) {
-      case 1: return 50; // Foundation blocks (thicker)
-      case 2: return 45; // Base walls
-      case 3: return 40; // Upper walls  
-      case 4: return 35; // Tower sections
-      case 5: return 30; // Decorative elements
-      case 6: return 25; // Pinnacles/flags
-      default: return 40;
-    }
-  }
+  // NOTE: `getPartHeight` moved to PartUtils.
   
   private dropCurrentPart(): void {
     if (!this.currentPart || !this.gameState.isGameActive) return;
