@@ -3,3 +3,4 @@ alwaysApply: true
 ---
 **Build Validation**: Run `npm run build` from the project root to check for syntax errors, validation issues, and dependency problems
 
+**Development**: Do not use `npm run dev` to run the project, as it is already running.

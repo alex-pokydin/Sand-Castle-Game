@@ -3,10 +3,28 @@ import { GameConfig, Level } from '@/types/Game';
 export const GAME_CONFIG: GameConfig = {
   width: 800,
   height: 600,
-  gravity: 300, // pixels per second squared
-  partSpeed: 100, // horizontal movement speed
+  gravity: 150, // Reduced from 300 for sand-like falling
+  partSpeed: 80, // Slightly slower horizontal movement for better control
   maxParts: 10
 };
+
+// Add physics constants for sand-like behavior
+export const PHYSICS_CONFIG = {
+  gravity: 0.6, // Matter.js gravity scale (default is 1)
+  airResistance: 0.01, // Air resistance for slower falling
+  sand: {
+    density: 0.6, // Lower density for sand
+    friction: 0.7, // High friction for sand
+    frictionStatic: 0.9, // Very high static friction
+    restitution: 0.05, // Very low bounce
+    frictionAir: 0.02 // Air resistance
+  },
+  ground: {
+    friction: 1.0,
+    frictionStatic: 1.0,
+    restitution: 0.1
+  }
+} as const;
 
 export const PART_TYPES = ['base', 'wall', 'tower', 'decoration'] as const;
 export type PartType = typeof PART_TYPES[number];
