@@ -31,18 +31,51 @@
 
 ## 🎮 Core Game Mechanics
 
-### 1. Castle Part Movement
+### 1. Level-Based Part System (NEW!)
+- **Part Levels**: Castle parts have levels 1-6, representing building floors/tiers
+- **Visual Distinction**: Each level has unique appearance (color/texture) for clear identification
+- **Level Indicators**: Visual numbers or symbols on parts to show their level
+- **Progressive Complexity**: Higher levels unlock as players build successfully
+
+#### Visual Distinction
+
+Each level has unique colors:
+- **Level 1**: Brown (foundation)
+- **Level 2**: Chocolate (base walls)
+- **Level 3**: Sandy brown (upper walls)
+- **Level 4**: Plum (tower sections)
+- **Level 5**: Medium purple (decorative)
+- **Level 6**: Gold (pinnacles/flags)
+
+### 2. Strategic Placement Rules
+- **Level 1 Parts**: Can only be placed directly on the ground (foundation)
+- **Level 2 Parts**: Can only be placed on top of Level 1 parts
+- **Level 3-6 Parts**: Can only be placed on parts of the previous level (N can only go on N-1)
+- **Wrong Placement**: Instant destruction with score penalty if placed incorrectly
+- **Visual Feedback**: Green/red preview showing valid/invalid placement zones
+
+### 3. Smart Part Spawning
+- **Adaptive Spawning**: Parts appear based on current castle height
+  - No castle built → Only Level 1 parts spawn
+  - Level 1 exists → Level 1 and 2 parts can spawn
+  - Level 2 exists → Level 1, 2, and 3 parts can spawn
+  - And so on up to Level 6
+- **Random Selection**: Parts chosen randomly from available levels
+- **Strategic Challenge**: Players must balance building foundation vs. building up
+
+### 4. Castle Part Movement
 - **Top Movement**: Castle parts move horizontally left-right at the top of the screen
 - **Speed Variation**: Movement speed increases with level progression
-- **Part Types**: Different castle components (base blocks, towers, walls, decorative elements)
-- **Visual Feedback**: Parts cast a simple shadow directly below showing landing position (no physics prediction required)
+- **Visual Feedback**: Parts cast a simple shadow directly below showing landing position
+- **Level Display**: Parts show their level number/color while moving
 
-### 2. Drop Mechanism
+### 5. Drop Mechanism
 - **Input**: Single tap/click to release the part
 - **Physics**: Gravity-based falling (9.8 units/second²) with 5% air resistance for visual appeal
+- **Placement Validation**: Real-time check for valid placement target
 - **Visual**: Smooth animation with particle effects (sand dust) on impact
 
-### 3. Success Detection (Stability Physics - Chosen Approach)
+### 6. Success Detection & Penalties
 
 Using **Matter.js physics engine** for realistic stability detection:
 
@@ -50,25 +83,34 @@ Using **Matter.js physics engine** for realistic stability detection:
 - **Perfect Stability**: Part settles with minimal movement (100 points)
 - **Good Stability**: Slight wobble but settles quickly (75 points) 
 - **Poor Stability**: Excessive wobbling, near collapse (25 points)
+- **Wrong Placement**: Instant destruction (-50 points penalty)
 - **Collapse**: Castle parts fall or tip over (0 points, life lost)
 
 #### Visual Feedback System
 - **Green Glow**: Stable parts (velocity < 0.1)
 - **Yellow Glow**: Slightly unstable (velocity 0.1-0.5)
 - **Red Glow + Wobble**: Unstable parts (velocity > 0.5)
-- **Crack Effects**: Parts about to fail
+- **Destruction Effect**: Particle explosion for wrong placements
 
 #### Physics Implementation
 ```typescript
-// Type definitions for our game objects
+// Updated type definitions for level-based parts
 interface CastlePartData {
   id: string;
   x: number;
   y: number;
   width: number;
   height: number;
+  level: number; // NEW: 1-6 part level
   velocity: { x: number; y: number };
   isStable: boolean;
+  placedOnValidTarget: boolean; // NEW: placement validation
+}
+
+interface PlacementResult {
+  valid: boolean;
+  targetLevel: number | null; // What level this part was placed on
+  penaltyApplied: boolean;
 }
 
 interface StabilityResult {
@@ -77,16 +119,27 @@ interface StabilityResult {
   stabilityScore: number;
 }
 
-// Stability check using Matter.js
-function checkStability(castleParts: CastlePartData[]): StabilityResult {
-  const unstableParts = castleParts.filter(part => 
-    Math.abs(part.velocity.x) > 0.1 || Math.abs(part.velocity.y) > 0.1
+// Enhanced placement validation
+function validatePlacement(part: CastlePartData, existingParts: CastlePartData[]): PlacementResult {
+  // Level 1 parts can only be placed on ground
+  if (part.level === 1) {
+    return { valid: true, targetLevel: 0, penaltyApplied: false }; // Ground = level 0
+  }
+  
+  // Find parts underneath this position
+  const partsBelow = existingParts.filter(existing => 
+    Math.abs(existing.x - part.x) < (existing.width + part.width) / 2 &&
+    existing.y < part.y &&
+    Math.abs(existing.y - part.y) < existing.height + 10 // 10px tolerance
   );
   
+  // Check if any part below has the correct level (part.level - 1)
+  const validTarget = partsBelow.find(below => below.level === part.level - 1);
+  
   return {
-    stable: unstableParts.length === 0,
-    unstableParts,
-    stabilityScore: (castleParts.length - unstableParts.length) / castleParts.length
+    valid: validTarget !== undefined,
+    targetLevel: validTarget?.level || null,
+    penaltyApplied: !validTarget
   };
 }
 
@@ -99,19 +152,27 @@ const sandPartProperties: Matter.IBodyDefinition = {
 };
 ```
 
-### 4. Level Progression (MVP: 5 Levels)
-- **Level 1**: Tutorial level - 2 parts, simple stack
-- **Level 2**: Basic foundation - 3 parts, wider base
-- **Level 3**: Add height - 4 parts, 2-story structure  
-- **Level 4**: Tower challenge - 5 parts, include narrow tower piece
-- **Level 5**: Complete castle - 6 parts, complex shape with decorative element
-- **Post-MVP**: Moving targets, multiple drop points, special parts
+### 7. Progressive Level Goals
+- **Level 1**: 2 parts total (tutorial - learn basic stacking)
+- **Level 2**: 3 parts total (learn level system)
+- **Level 3**: 5 parts total (build strategy)
+- **Level 4**: 10 parts total (logistics challenge)
+- **Level 5**: 15 parts total (advanced planning)
+- **Level 6+**: +5 parts each level (endless challenge)
 
-### 5. Losing Mechanisms
-- **Limited Attempts**: 3 failed drops per level (MVP feature)
+### 8. Strategic Scoring System
+- **Placement Bonus**: Correct level placement (+10 bonus points)
+- **Height Bonus**: Building higher levels gives multiplier (Level 6 parts = 6x base score)
+- **Efficiency Bonus**: Completing level with fewer attempts
+- **Penalty System**: Wrong placement (-50 points), destruction cleanup
+- **Combo System**: Consecutive correct placements increase score multiplier
+
+### 9. Enhanced Losing Mechanisms
+- **Placement Penalties**: Wrong level placement results in part destruction
+- **Score Penalties**: -50 points per destroyed part
 - **Stability System**: Castle collapses if too unstable (primary loss condition)
-- **Time Pressure**: Optional timer for advanced levels (post-MVP)
-- **Foundation Failure**: Too many poor placements cause structural collapse
+- **Resource Management**: Must plan which levels to build when
+- **Limited Attempts**: 3 total failures per level (wrong placement counts as failure)
 
 ## 🎨 Visual Design (Kids-Oriented)
 

@@ -1,7 +1,7 @@
 import { Scene } from 'phaser';
 import { CastlePart } from '@/objects/CastlePart';
-import { GAME_CONFIG, LEVELS, COLORS, PartType, PHYSICS_CONFIG } from '@/config/gameConfig';
-import { GameState } from '@/types/Game';
+import { GAME_CONFIG, LEVELS, COLORS, PHYSICS_CONFIG, SCORING_CONFIG, generateLevel } from '@/config/gameConfig';
+import { GameState, GroundViolation, PartLevel, CastleState } from '@/types/Game';
 import { StabilityManager } from '@/objects/StabilityManager';
 import { AudioManager } from '@/utils/AudioManager';
 
@@ -15,9 +15,13 @@ export class GameScene extends Scene {
   private scoreText?: Phaser.GameObjects.Text;
   private livesText?: Phaser.GameObjects.Text;
   private instructionText?: Phaser.GameObjects.Text;
+  private penaltyText?: Phaser.GameObjects.Text;
   private currentLevelIndex: number = 0;
   private stabilityManager: StabilityManager;
   private audioManager: AudioManager;
+  private groundViolations: GroundViolation[] = [];
+  private totalPartsDropped: number = 0; // Track total parts dropped including destroyed ones
+  private groundSprite?: Phaser.GameObjects.Rectangle; // Reference to ground sprite for collision detection
 
   
   constructor() {
@@ -30,7 +34,8 @@ export class GameScene extends Scene {
       score: 0,
       lives: 3,
       droppedParts: [],
-      isGameActive: true
+      isGameActive: true,
+      isFirstPart: true // Start with the first part
     };
   }
   
@@ -90,11 +95,12 @@ export class GameScene extends Scene {
     this.instructionText = this.add.text(
       this.scale.width / 2,
       this.scale.height - 100,
-      'Tap/Click to drop castle part',
+      'Tap/Click to drop castle part\nOnly first part can touch ground!',
       {
-        fontSize: '18px',
+        fontSize: '16px',
         color: '#34495E',
-        fontFamily: 'Arial'
+        fontFamily: 'Arial',
+        align: 'center'
       }
     );
     this.instructionText.setOrigin(0.5);
@@ -109,18 +115,32 @@ export class GameScene extends Scene {
   }
   
   private setupPhysics(): void {
-    // Configure Matter.js physics engine for sand-like behavior
+    // Configure Matter.js physics engine for enhanced sand-like behavior
     this.matter.world.setGravity(0, PHYSICS_CONFIG.gravity);
     
-    // Remove conflicting world bounds - let the ground handle bottom collision
-    // Only add side and top bounds to prevent parts from escaping sideways
+    // Configure world bounds with high friction walls
     this.matter.world.setBounds(0, 0, this.scale.width, this.scale.height, 32, true, true, true, false);
     
-    // Create static ground for collision using Matter.js with improved properties
+    // Set high friction for world bounds to prevent parts from sliding along walls
+    const worldBounds = this.matter.world.walls;
+    if (worldBounds.left) {
+      this.matter.body.set(worldBounds.left, 'friction', 1.0);
+      this.matter.body.set(worldBounds.left, 'frictionStatic', 1.5);
+    }
+    if (worldBounds.right) {
+      this.matter.body.set(worldBounds.right, 'friction', 1.0);
+      this.matter.body.set(worldBounds.right, 'frictionStatic', 1.5);
+    }
+    if (worldBounds.top) {
+      this.matter.body.set(worldBounds.top, 'friction', 1.0);
+      this.matter.body.set(worldBounds.top, 'frictionStatic', 1.5);
+    }
+    
+    // Create enhanced static ground for collision
     const groundY = this.scale.height - 25;
     const groundHeight = 50;
     
-    const groundGraphics = this.add.rectangle(
+    this.groundSprite = this.add.rectangle(
       this.scale.width / 2,
       groundY,
       this.scale.width,
@@ -128,12 +148,16 @@ export class GameScene extends Scene {
       COLORS.SAND_DARK
     );
     
-    // Add Matter.js physics to ground with sand-friendly properties
-    this.matter.add.gameObject(groundGraphics, { 
+    // Add Matter.js physics to ground with enhanced sand-friendly properties
+    this.matter.add.gameObject(this.groundSprite, { 
       isStatic: true,
       friction: PHYSICS_CONFIG.ground.friction,
       frictionStatic: PHYSICS_CONFIG.ground.frictionStatic,
       restitution: PHYSICS_CONFIG.ground.restitution,
+      // Rougher surface texture for better grip
+      chamfer: { radius: 1 },
+      // Label for collision detection
+      label: 'ground',
       // Ensure ground collision filter matches parts
       collisionFilter: {
         category: 0x0001,
@@ -142,13 +166,18 @@ export class GameScene extends Scene {
       }
     });
     
-    // Enable collision events for better stability tracking
+    // Configure Matter.js engine for better stability
+    this.matter.world.engine.constraintIterations = 3; // More constraint solving iterations
+    this.matter.world.engine.positionIterations = 8; // More position iterations for stability
+    this.matter.world.engine.velocityIterations = 6; // Better velocity resolution
+    
+    // Enable collision events for enhanced stability tracking
     this.matter.world.on('collisionstart', this.onCollisionStart, this);
     this.matter.world.on('collisionend', this.onCollisionEnd, this);
   }
   
   private onCollisionStart(event: Phaser.Physics.Matter.Events.CollisionStartEvent): void {
-    // Handle collision start for sound effects and stability checks
+    // Handle collision start for sound effects and ground detection
     const pairs = event.pairs;
     
     for (const pair of pairs) {
@@ -156,10 +185,179 @@ export class GameScene extends Scene {
       const bodyA = pair.bodyA.gameObject as CastlePart;
       const bodyB = pair.bodyB.gameObject as CastlePart;
       
+      // Check for ground collisions
+      const isGroundCollision = this.checkGroundCollision(pair.bodyA, pair.bodyB);
+      
       if (bodyA instanceof CastlePart || bodyB instanceof CastlePart) {
         // Play soft collision sound for part-to-part or part-to-ground contact
         this.audioManager.playDropSound();
+        
+        // Handle ground collision if detected
+        if (isGroundCollision) {
+          const castlePart = bodyA instanceof CastlePart ? bodyA : bodyB;
+          if (castlePart) {
+            this.handleGroundCollision(castlePart);
+          }
+        }
       }
+    }
+  }
+
+  private checkGroundCollision(bodyA: MatterJS.BodyType, bodyB: MatterJS.BodyType): boolean {
+    // Check if either body is the ground
+    return (bodyA.label === 'ground') || (bodyB.label === 'ground');
+  }
+
+  private handleGroundCollision(part: CastlePart): void {
+    // Safety check: ensure part still has valid physics body
+    if (!part || !part.body || !part.body.position) {
+      return; // Skip if part is already destroyed or invalid
+    }
+    
+    const partIndex = this.droppedParts.indexOf(part);
+    if (partIndex === -1) return; // Part not in array
+    
+    // NEW LEVEL-BASED RULES: Level 1 parts are allowed on ground
+    if (part.getPartLevel() === 1) {
+      // Level 1 parts are allowed on ground - no penalty
+      // Mark that first part has been placed
+      if (this.gameState.isFirstPart) {
+        this.gameState.isFirstPart = false;
+      }
+    } else {
+      // Level 2+ parts touching ground get penalty
+      this.handleGroundContact(part);
+    }
+  }
+
+  private checkPartForGroundViolation(part: CastlePart): void {
+    // Safety check: ensure part still exists and has a position
+    if (!part || !part.body || part.body.position === undefined) {
+      return;
+    }
+    
+    // Note: This method is now mainly for safety checks - actual ground detection happens via collision
+  }
+
+  private handleGroundContact(part: CastlePart): void {
+    // Check if this part has already been penalized to avoid multiple penalties
+    const partId = part.getPartData().id;
+    const alreadyPenalized = this.groundViolations.some(violation => violation.partId === partId);
+    
+    if (alreadyPenalized) {
+      return; // Don't apply penalty multiple times to the same part
+    }
+
+    // Check if part has already been marked as having valid placement by our new system
+    if (part.getPartData().placedOnValidTarget) {
+      return; // Don't penalize parts that passed placement validation
+    }
+
+    // Apply penalty for Level 2+ parts touching ground
+    this.applyGroundPenalty(part);
+  }
+
+  private applyGroundPenalty(part: CastlePart): void {
+    // Apply penalty
+    const penalty = GAME_CONFIG.groundPenalty.scoreReduction;
+    this.gameState.score = Math.max(0, this.gameState.score - penalty);
+
+    // Record violation
+    const violation: GroundViolation = {
+      partId: part.getPartData().id,
+      penaltyApplied: penalty,
+      timestamp: Date.now()
+    };
+    this.groundViolations.push(violation);
+
+    // Show penalty feedback
+    this.showPenaltyFeedback(penalty);
+
+    // Play penalty sound
+    this.audioManager.playCollapseSound();
+
+    // Remove the part from dropped parts array
+    const partIndex = this.droppedParts.indexOf(part);
+    if (partIndex > -1) {
+      this.droppedParts.splice(partIndex, 1);
+    }
+
+    // Destroy the part with effect
+    this.destroyPartWithEffect(part);
+
+    // Update UI
+    this.updateUI();
+  }
+
+  private showPenaltyFeedback(penalty: number, message: string = "Part touched ground!"): void {
+    // Create penalty text
+    if (this.penaltyText) {
+      this.penaltyText.destroy();
+    }
+
+    this.penaltyText = this.add.text(
+      this.scale.width / 2,
+      this.scale.height / 2 - 50,
+      `PENALTY: -${penalty} points\n${message}`,
+      {
+        fontSize: '24px',
+        color: '#E74C3C',
+        fontFamily: 'Arial',
+        align: 'center',
+        backgroundColor: '#000000',
+        padding: { x: 10, y: 5 }
+      }
+    );
+    this.penaltyText.setOrigin(0.5);
+
+    // Animate penalty text
+    this.tweens.add({
+      targets: this.penaltyText,
+      y: this.penaltyText.y - 30,
+      alpha: 0,
+      duration: 2000,
+      ease: 'Power2.easeOut',
+      onComplete: () => {
+        if (this.penaltyText) {
+          this.penaltyText.destroy();
+          this.penaltyText = undefined;
+        }
+      }
+    });
+  }
+
+  private destroyPartWithEffect(part: CastlePart): void {
+    // Create destruction particles
+    this.createDestructionParticles(part.x, part.y);
+
+    // Shake effect
+    this.cameras.main.shake(200, 0.01);
+
+    // Destroy the part
+    part.destroy();
+  }
+
+  private createDestructionParticles(x: number, y: number): void {
+    // Create red destruction particles
+    for (let i = 0; i < 12; i++) {
+      const particle = this.add.circle(
+        x + (Math.random() - 0.5) * 40,
+        y + (Math.random() - 0.5) * 40,
+        Math.random() * 3 + 1,
+        COLORS.RED
+      );
+
+      this.tweens.add({
+        targets: particle,
+        x: particle.x + (Math.random() - 0.5) * 100,
+        y: particle.y - Math.random() * 60 - 20,
+        alpha: 0,
+        scaleX: 0,
+        scaleY: 0,
+        duration: 1000,
+        ease: 'Power2.easeOut',
+        onComplete: () => particle.destroy()
+      });
     }
   }
   
@@ -170,16 +368,18 @@ export class GameScene extends Scene {
   private spawnNextPart(): void {
     if (!this.gameState.isGameActive) return;
     
-    const currentLevel = LEVELS[this.currentLevelIndex];
+    const currentLevel = LEVELS[this.currentLevelIndex] || generateLevel(this.currentLevelIndex + 1);
     if (!currentLevel) return;
     
-    // Get next part type for this level
-    const partTypeIndex = this.droppedParts.length % currentLevel.partTypes.length;
-    const partType = currentLevel.partTypes[partTypeIndex] as PartType;
+    // Smart spawning: determine available part levels based on current castle
+    const availableLevels = this.getAvailablePartLevels();
+    
+    // Randomly select a part level from available options
+    const partLevel = availableLevels[Math.floor(Math.random() * availableLevels.length)];
     
     // Create new part at top of screen
-    const partWidth = this.getPartWidth(partType);
-    const partHeight = this.getPartHeight(partType);
+    const partWidth = this.getPartWidth(partLevel);
+    const partHeight = this.getPartHeight(partLevel);
     
     this.currentPart = new CastlePart(
       this,
@@ -187,30 +387,73 @@ export class GameScene extends Scene {
       50,
       partWidth,
       partHeight,
-      partType
+      partLevel
     );
     
     // Reset movement direction randomly
     this.direction = Math.random() > 0.5 ? 1 : -1;
   }
   
-  private getPartWidth(partType: PartType): number {
-    switch (partType) {
-      case 'base': return 80;
-      case 'wall': return 60;
-      case 'tower': return 40;
-      case 'decoration': return 30;
-      default: return 60;
+  /**
+   * Determine which part levels can be spawned based on current castle state
+   */
+  private getAvailablePartLevels(): PartLevel[] {
+    const castleState = this.getCastleState();
+    
+    // If no castle, only level 1 parts can be spawned
+    if (castleState.maxLevel === 0) {
+      return [1];
     }
+    
+    // Can spawn parts from level 1 up to maxLevel + 1 (up to level 6)
+    const availableLevels: PartLevel[] = [];
+    for (let level = 1; level <= Math.min(castleState.maxLevel + 1, 6); level++) {
+      availableLevels.push(level as PartLevel);
+    }
+    
+    return availableLevels;
   }
   
-  private getPartHeight(partType: PartType): number {
-    switch (partType) {
-      case 'base': return 40;
-      case 'wall': return 60;
-      case 'tower': return 80;
-      case 'decoration': return 25;
-      default: return 50;
+  /**
+   * Get current state of the castle
+   */
+  private getCastleState(): CastleState {
+    const partsByLevel = new Map<number, any[]>();
+    let maxLevel = 0;
+    
+    this.droppedParts.forEach(part => {
+      const partLevel = part.getPartLevel();
+      maxLevel = Math.max(maxLevel, partLevel);
+      
+      if (!partsByLevel.has(partLevel)) {
+        partsByLevel.set(partLevel, []);
+      }
+      partsByLevel.get(partLevel)!.push(part.getPartData());
+    });
+    
+    return {
+      maxLevel,
+      partsByLevel,
+      totalParts: this.droppedParts.length
+    };
+  }
+  
+  private getPartWidth(partLevel: PartLevel): number {
+    // Base width that decreases as levels go higher (representing narrowing castle structure)
+    const baseWidth = 80;
+    return Math.max(40, baseWidth - (partLevel - 1) * 8); // Level 1: 80px, Level 6: 40px
+  }
+  
+  private getPartHeight(partLevel: PartLevel): number {
+    // Height varies by level to create visual hierarchy
+    switch (partLevel) {
+      case 1: return 50; // Foundation blocks (thicker)
+      case 2: return 45; // Base walls
+      case 3: return 40; // Upper walls  
+      case 4: return 35; // Tower sections
+      case 5: return 30; // Decorative elements
+      case 6: return 25; // Pinnacles/flags
+      default: return 40;
     }
   }
   
@@ -221,23 +464,46 @@ export class GameScene extends Scene {
     this.currentPart.drop(GAME_CONFIG.gravity);
     const droppedPart = this.currentPart;
     this.droppedParts.push(droppedPart);
+    this.totalPartsDropped++;
     this.currentPart = undefined;
+    
+    // New placement validation after parts have more time to settle
+    this.time.delayedCall(2500, () => {
+      this.validatePartPlacement(droppedPart);
+    });
+    
+    // Ground violation check still happens, but only for parts that weren't already destroyed
+    this.time.delayedCall(2500, () => {
+      // Only check if part still exists (wasn't destroyed by placement validation)
+      if (this.droppedParts.includes(droppedPart)) {
+        this.checkPartForGroundViolation(droppedPart);
+      }
+    });
     
     // Check if level is complete after this drop
     const currentLevel = LEVELS[this.currentLevelIndex];
-    if (currentLevel && this.droppedParts.length >= currentLevel.targetParts) {
-      // Wait for part to settle before completing level
-      this.time.delayedCall(2000, () => {
+    if (currentLevel && this.totalPartsDropped >= currentLevel.targetParts) {
+      // Wait longer for parts to fully settle before completing level
+      this.time.delayedCall(3000, () => {
+        // Check if we actually have enough valid parts (not destroyed by ground violations)
+        if (this.droppedParts.length < currentLevel.targetParts) {
+          // Not enough parts remaining - continue with current level
+          this.spawnNextPart();
+          return;
+        }
+        
         if (droppedPart.isPartDropped()) {
           // Calculate stability points
           const stabilityPoints = droppedPart.getStabilityPoints();
           this.gameState.score += stabilityPoints;
           
-          // Check for castle collapse
-          const allPartData = this.droppedParts.map(part => part.getPartData());
-          if (this.stabilityManager.hasCollapsed(allPartData)) {
-            this.handleCastleCollapse();
-            return;
+          // Only check for collapse if we have multiple parts and they've had time to settle
+          if (this.droppedParts.length >= 2) {
+            const allPartData = this.droppedParts.map(part => part.getPartData());
+            if (this.stabilityManager.hasCollapsed(allPartData)) {
+              this.handleCastleCollapse();
+              return;
+            }
           }
           
           this.updateUI();
@@ -249,18 +515,20 @@ export class GameScene extends Scene {
     } else {
       // Continue with current level - spawn next part
       
-      // Wait for part to settle and then check for stability and score
-      this.time.delayedCall(2000, () => {
+      // Wait longer for part to settle and then check for stability and score
+      this.time.delayedCall(3000, () => {
         if (droppedPart.isPartDropped()) {
           // Calculate stability points
           const stabilityPoints = droppedPart.getStabilityPoints();
           this.gameState.score += stabilityPoints;
           
-          // Check for castle collapse
-          const allPartData = this.droppedParts.map(part => part.getPartData());
-          if (this.stabilityManager.hasCollapsed(allPartData)) {
-            this.handleCastleCollapse();
-            return;
+          // Only check for collapse if we have multiple parts and they've had time to settle
+          if (this.droppedParts.length >= 2) {
+            const allPartData = this.droppedParts.map(part => part.getPartData());
+            if (this.stabilityManager.hasCollapsed(allPartData)) {
+              this.handleCastleCollapse();
+              return;
+            }
           }
           
           this.updateUI();
@@ -272,6 +540,127 @@ export class GameScene extends Scene {
         this.spawnNextPart();
       });
     }
+  }
+  
+  /**
+   * Validate if a dropped part has correct level placement
+   */
+  private validatePartPlacement(part: CastlePart): void {
+    if (!part || !part.isPartDropped()) return;
+    
+    // Safety check: ensure part still has valid physics body
+    if (!part.body || !part.body.position) {
+      return;
+    }
+    
+    // Get all other parts (excluding the one being validated) that are still valid
+    const otherParts = this.droppedParts.filter(p => {
+      return p !== part && p.body && p.body.position; // Only include parts with valid physics
+    });
+    
+
+    
+    // Validate placement
+    const placementResult = part.validatePlacement(otherParts);
+    
+    if (!placementResult.valid) {
+      // Wrong placement - destroy part and apply penalty
+      this.handleWrongPlacement(part, placementResult);
+    } else {
+      // Correct placement - mark as valid and give bonus
+      part.setPlacementValid(true);
+      this.handleCorrectPlacement(part, placementResult);
+    }
+  }
+  
+  /**
+   * Handle wrong part placement
+   */
+  private handleWrongPlacement(part: CastlePart, _placementResult: any): void {
+    // Record wrong placement event (for future analytics)
+    // const wrongPlacement: WrongPlacementEvent = {
+    //   partId: part.getPartData().id,
+    //   partLevel: part.getPartLevel(),
+    //   attemptedTargetLevel: placementResult.targetLevel,
+    //   penaltyApplied: SCORING_CONFIG.wrongPlacementPenalty,
+    //   timestamp: Date.now()
+    // };
+    
+    // Apply score penalty
+    this.gameState.score = Math.max(0, this.gameState.score - SCORING_CONFIG.wrongPlacementPenalty);
+    
+    // Show penalty feedback
+    this.showPenaltyFeedback(SCORING_CONFIG.wrongPlacementPenalty, "Wrong Level!");
+    
+    // Play penalty sound
+    this.audioManager.playCollapseSound();
+    
+    // Remove part from dropped parts array
+    const partIndex = this.droppedParts.indexOf(part);
+    if (partIndex > -1) {
+      this.droppedParts.splice(partIndex, 1);
+    }
+    
+    // Destroy the part with effect
+    this.destroyPartWithEffect(part);
+    
+    // Update UI
+    this.updateUI();
+  }
+  
+  /**
+   * Handle correct part placement
+   */
+  private handleCorrectPlacement(part: CastlePart, _placementResult: any): void {
+    // Give placement bonus
+    const placementBonus = SCORING_CONFIG.placementBonus;
+    
+    // Give level multiplier bonus (higher levels worth more points)
+    const levelMultiplier = part.getPartLevel() * SCORING_CONFIG.levelMultiplier;
+    const levelBonus = SCORING_CONFIG.baseScore * levelMultiplier;
+    
+    // Calculate total bonus
+    const totalBonus = placementBonus + levelBonus;
+    this.gameState.score += totalBonus;
+    
+    // Show positive feedback
+    this.showSuccessFeedback(totalBonus, `Level ${part.getPartLevel()}!`);
+    
+    // Play success sound
+    this.audioManager.playDropSound();
+    
+    // Update UI
+    this.updateUI();
+  }
+  
+  /**
+   * Show success feedback to player
+   */
+  private showSuccessFeedback(bonus: number, message: string): void {
+    const successText = this.add.text(
+      this.scale.width / 2,
+      this.scale.height / 3,
+      `${message}\n+${bonus} points`,
+      {
+        fontSize: '20px',
+        color: '#00FF00',
+        fontStyle: 'bold',
+        align: 'center'
+      }
+    );
+    successText.setOrigin(0.5);
+    
+    // Animate success text
+    this.tweens.add({
+      targets: successText,
+      y: successText.y - 30,
+      alpha: 0,
+      duration: 1500,
+      ease: 'Power2',
+      onComplete: () => {
+        successText.destroy();
+      }
+    });
   }
   
   private handleCastleCollapse(): void {
@@ -308,6 +697,11 @@ export class GameScene extends Scene {
     // Reset game state
     this.gameState.isGameActive = true;
     this.gameState.lives--;
+    this.gameState.isFirstPart = true; // Reset first part flag
+    
+    // Clear ground violations and reset counters
+    this.groundViolations = [];
+    this.totalPartsDropped = 0;
     
     if (this.gameState.lives <= 0) {
       this.gameOver();
@@ -356,6 +750,11 @@ export class GameScene extends Scene {
     
     // Ensure game remains active
     this.gameState.isGameActive = true;
+    this.gameState.isFirstPart = true; // Reset first part flag for new level
+    
+    // Clear ground violations and reset counters
+    this.groundViolations = [];
+    this.totalPartsDropped = 0;
     
     // Clear any existing current part
     if (this.currentPart) {
@@ -430,9 +829,11 @@ export class GameScene extends Scene {
       }
     }
     
-    // Check stability of dropped parts
-    this.droppedParts.forEach(part => {
-      part.checkStability();
+    // Check stability of dropped parts (ground violations now handled by collision detection)
+    this.droppedParts.forEach((part) => {
+      if (part && part.body) {
+        part.checkStability();
+      }
     });
   }
 } 

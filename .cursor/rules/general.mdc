@@ -4,3 +4,5 @@ alwaysApply: true
 **Build Validation**: Run `npm run build` from the project root to check for syntax errors, validation issues, and dependency problems
 
 **Development**: Do not use `npm run dev` to run the project, as it is already running.
+
+**Debugging**: When debugging, use the console.log() function to print messages to the console. User will be able to see the messages and provide feedback.

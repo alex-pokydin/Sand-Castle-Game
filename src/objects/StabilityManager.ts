@@ -124,14 +124,47 @@ export class StabilityManager {
    * Check if castle has collapsed (major instability)
    */
   public hasCollapsed(castleParts: CastlePartData[]): boolean {
-    if (castleParts.length === 0) return false;
+    // Need at least 2 parts to have a meaningful collapse
+    if (castleParts.length < 2) return false;
     
-    // Consider collapsed if more than 50% of parts are highly unstable
-    const highlyUnstableParts = castleParts.filter(part => {
-      const velocity = Math.abs(part.velocity.x) + Math.abs(part.velocity.y);
-      return velocity > StabilityManager.UNSTABLE_VELOCITY_THRESHOLD * 2;
+    // Filter out parts that are likely just falling naturally (high Y velocity, low X velocity)
+    const settledParts = castleParts.filter(part => {
+      const yVel = Math.abs(part.velocity.y);
+      const xVel = Math.abs(part.velocity.x);
+      
+      // If part is falling straight down fast, it's probably just dropping, not collapsing
+      if (yVel > 2 && xVel < 0.5) {
+        return false; // Exclude from collapse consideration
+      }
+      return true; // Include in collapse analysis
     });
     
-    return highlyUnstableParts.length > castleParts.length * 0.5;
+    // Need at least 2 settled parts to check for collapse
+    if (settledParts.length < 2) return false;
+    
+    // Consider collapsed if more than 60% of settled parts are highly unstable
+    // Use a higher threshold for "highly unstable" to avoid false positives
+    const highlyUnstableParts = settledParts.filter(part => {
+      const velocity = Math.abs(part.velocity.x) + Math.abs(part.velocity.y);
+      // Increased threshold to avoid detecting normal settling as collapse
+      return velocity > StabilityManager.UNSTABLE_VELOCITY_THRESHOLD * 3; // Was * 2, now * 3
+    });
+    
+    // Require more than 60% to be unstable (was 50%)
+    return highlyUnstableParts.length > settledParts.length * 0.6;
+  }
+  
+  /**
+   * Calculate level-based stability points for a part
+   * Higher level parts get more points when stable
+   */
+  public calculateLevelBasedStabilityPoints(part: CastlePartData): number {
+    const basePoints = this.calculateStabilityPoints(part);
+    
+    // Level multiplier: higher levels get more points
+    const levelMultiplier = part.level || 1;
+    
+    // Apply level multiplier to base points
+    return Math.floor(basePoints * levelMultiplier);
   }
 } 
