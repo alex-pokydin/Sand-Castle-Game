@@ -22,11 +22,12 @@ class I18nManager {
     this.languages.set('ua', { code: 'ua', name: 'Українська' });
   }
 
-  // Initialize with detected or saved language
+  // Initialize with priority: localStorage -> system language -> default (English)
   async init(): Promise<void> {
     const savedLanguage = this.getSavedLanguage();
-    const detectedLanguage = savedLanguage || this.detectLanguage();
-    await this.setLanguage(detectedLanguage);
+    const detectedLanguage = this.detectSystemLanguage();
+    const defaultLanguage = savedLanguage || detectedLanguage || 'en';
+    await this.setLanguage(defaultLanguage);
   }
 
   // Get available languages
@@ -65,8 +66,14 @@ class I18nManager {
 
   // Load translation file
   private async loadTranslations(languageCode: string): Promise<Record<string, string>> {
-    const module = await import(`./translations/${languageCode}.ts`);
-    return module.default || module.translations;
+    try {
+      const module = await import(`./translations/${languageCode}.ts`);
+      const translations = module.default || module.translations;
+      return translations;
+    } catch (error) {
+      console.error(`Error loading translations for ${languageCode}:`, error);
+      throw error;
+    }
   }
 
   // Translate a key with optional variable interpolation
@@ -82,7 +89,8 @@ class I18nManager {
       return this.interpolate(translations[key], values);
     }
 
-    // Fallback to English key
+    // Fallback to English key with warning
+    console.warn(`[I18n] Missing translation for key "${key}" in language "${this.currentLanguage.code}". Falling back to English.`);
     return this.interpolate(key, values);
   }
 
@@ -96,20 +104,7 @@ class I18nManager {
     });
   }
 
-  // Detect browser language
-  private detectLanguage(): string {
-    const browserLang = navigator.language || navigator.languages?.[0] || 'en';
-    const langCode = browserLang.split('-')[0]; // Get base language (e.g., 'uk' from 'uk-UA')
-    
-    // Map some common variations
-    const langMap: Record<string, string> = {
-      'uk': 'ua', // Ukrainian
-      'ru': 'ua'  // Russian speakers likely prefer Ukrainian in this context
-    };
 
-    const mappedLang = langMap[langCode] || langCode;
-    return this.languages.has(mappedLang) ? mappedLang : 'en';
-  }
 
   // Save language preference
   private saveLanguage(languageCode: string): void {
@@ -126,6 +121,26 @@ class I18nManager {
       return localStorage.getItem('sand-castle-language');
     } catch (error) {
       console.warn('Failed to get saved language preference:', error);
+      return null;
+    }
+  }
+
+  // Detect system language from browser
+  private detectSystemLanguage(): string | null {
+    try {
+      const browserLang = navigator.language || navigator.languages?.[0] || 'en';
+      const langCode = browserLang.split('-')[0]; // Get base language (e.g., 'uk' from 'uk-UA')
+      
+      // Map some common variations to our supported languages
+      const langMap: Record<string, string> = {
+        'uk': 'ua', // Ukrainian
+        'ru': 'ua'  // Russian speakers likely prefer Ukrainian in this context
+      };
+
+      const mappedLang = langMap[langCode] || langCode;
+      return this.languages.has(mappedLang) ? mappedLang : null;
+    } catch (error) {
+      console.warn('Failed to detect system language:', error);
       return null;
     }
   }
@@ -155,33 +170,123 @@ class I18nManager {
   }
 }
 
-// Global i18n manager instance
-const i18nManager = new I18nManager();
+// Global i18n manager instance - ensure singleton
+let i18nManager: I18nManager;
+
+// Get or create the global i18n manager instance
+const getI18nManager = (): I18nManager => {
+  if (!i18nManager) {
+    i18nManager = new I18nManager();
+  }
+  return i18nManager;
+};
 
 // Async translation function (for initial loading)
 export const t = async (key: TranslationKey, values?: TranslationValues): Promise<string> => {
-  return i18nManager.translate(key, values);
+  return getI18nManager().translate(key, values);
 };
 
 // Sync translation function (when language already loaded)
 export const tSync: TranslationFunction = (key: TranslationKey, values?: TranslationValues): string => {
-  return i18nManager.translate(key, values);
+  return getI18nManager().translate(key, values);
 };
 
 // Export manager for advanced usage
-export { i18nManager };
+export const getI18nManagerInstance = (): I18nManager => getI18nManager();
 
 // Language selection utilities
-export const setLanguage = (languageCode: string): Promise<void> => i18nManager.setLanguage(languageCode);
-export const getCurrentLanguage = (): Language => i18nManager.getCurrentLanguage();
-export const getAvailableLanguages = (): Language[] => i18nManager.getAvailableLanguages();
-export const initI18n = (): Promise<void> => i18nManager.init();
+export const setLanguage = (languageCode: string): Promise<void> => getI18nManager().setLanguage(languageCode);
+export const getCurrentLanguage = (): Language => getI18nManager().getCurrentLanguage();
+export const getAvailableLanguages = (): Language[] => getI18nManager().getAvailableLanguages();
+export const initI18n = (): Promise<void> => getI18nManager().init();
 
 // Language change subscription
 export const onLanguageChange = (callback: (language: Language) => void): void => {
-  i18nManager.onLanguageChange(callback);
+  getI18nManager().onLanguageChange(callback);
 };
 
 export const offLanguageChange = (callback: (language: Language) => void): void => {
-  i18nManager.offLanguageChange(callback);
+  getI18nManager().offLanguageChange(callback);
+};
+
+// Debug function to check current state
+export const debugI18n = (): void => {
+  console.log('=== I18n Debug Info ===');
+  console.log('Current language:', getI18nManager().getCurrentLanguage());
+  console.log('Available languages:', getI18nManager().getAvailableLanguages());
+  console.log('Saved language from localStorage:', localStorage.getItem('sand-castle-language'));
+  console.log('========================');
+};
+
+// Test function to manually set language (for debugging)
+export const testSetLanguage = async (languageCode: string): Promise<void> => {
+  console.log(`Testing language change to: ${languageCode}`);
+  await setLanguage(languageCode);
+  debugI18n();
+};
+
+// Test function to check translation
+export const testTranslation = (key: string): void => {
+  console.log(`Testing translation for key: "${key}"`);
+  const result = tSync(key);
+  console.log(`Translation result: "${result}"`);
+};
+
+// Test function to clear saved language (for testing default behavior)
+export const clearSavedLanguage = (): void => {
+  try {
+    localStorage.removeItem('sand-castle-language');
+    console.log('Saved language preference cleared');
+  } catch (error) {
+    console.warn('Failed to clear saved language preference:', error);
+  }
+};
+
+// Test function to show system language detection
+export const testSystemLanguageDetection = (): void => {
+  console.log('=== System Language Detection Test ===');
+  console.log('navigator.language:', navigator.language);
+  console.log('navigator.languages:', navigator.languages);
+  
+  const manager = getI18nManager();
+  const savedLanguage = localStorage.getItem('sand-castle-language');
+  const detectedLanguage = (manager as any).detectSystemLanguage?.() || 'Method not accessible';
+  
+  console.log('Saved language:', savedLanguage);
+  console.log('Detected language:', detectedLanguage);
+  console.log('=====================================');
+};
+
+// Test function to check for missing translations
+export const checkMissingTranslations = (): void => {
+  console.log('=== Missing Translations Check ===');
+  const currentLang = getCurrentLanguage();
+  
+  if (currentLang.code === 'en') {
+    console.log('Current language is English - no translations needed');
+    return;
+  }
+  
+  const translations = currentLang.translations;
+  if (!translations) {
+    console.log('No translations loaded for current language');
+    return;
+  }
+  
+  // Common keys that should be translated
+  const commonKeys = [
+    'Sand Castle', 'Play Game', 'Settings', 'High Score', 'Resume Game', 
+    'New Game', 'Back to Menu', 'Language', 'Game Over', 'Level Complete',
+    'Perfect Drop!', 'Great Placement!', 'Good Job!', 'Oops! Try Again'
+  ];
+  
+  const missingKeys = commonKeys.filter(key => !translations[key]);
+  
+  if (missingKeys.length === 0) {
+    console.log('✅ All common translations are present');
+  } else {
+    console.log('❌ Missing translations for keys:', missingKeys);
+  }
+  
+  console.log('=====================================');
 }; 

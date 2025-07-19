@@ -78,6 +78,7 @@ export const translations: Record<string, string> = {
   "Continue": "Продовжити",
   "Pause": "Пауза",
   "Quit": "Вийти",
+  "Back to Menu": "Назад до Меню",
 
   // Achievements & Progress
   "First Castle Built!": "Перший Замок Збудовано!",

@@ -1,5 +1,5 @@
 import { Scene } from 'phaser';
-import { tSync, initI18n, setLanguage, getCurrentLanguage, onLanguageChange, offLanguageChange } from '@/i18n';
+import { tSync, initI18n, onLanguageChange, offLanguageChange, getCurrentLanguage, setLanguage } from '@/i18n';
 import { supportsVibration } from '@/utils/DeviceUtils';
 
 export class MenuScene extends Scene {
@@ -7,7 +7,6 @@ export class MenuScene extends Scene {
   private playButton?: Phaser.GameObjects.Container;
   private settingsButton?: Phaser.GameObjects.Container;
   private highScoreText?: Phaser.GameObjects.Text;
-  private languageButton?: Phaser.GameObjects.Container;
   private backgroundGradient?: Phaser.GameObjects.Graphics;
   private decorativeElements: Phaser.GameObjects.GameObject[] = [];
   private isGamePaused: boolean = false;
@@ -37,25 +36,27 @@ export class MenuScene extends Scene {
     onLanguageChange(this.languageChangeHandler);
   }
 
-  create(): void {
-    console.log('MenuScene create called');
-    console.log('pauseData:', this.pauseData);
-    console.log('scene.isActive(GameScene):', this.scene.isActive('GameScene'));
-    console.log('scene.isPaused(GameScene):', this.scene.isPaused('GameScene'));
+  async create(): Promise<void> {
     // Check if we're coming from a paused game - use passed data or fallback to scene check
     this.isGamePaused = this.pauseData?.isPaused || (this.scene.isActive('GameScene') && this.scene.isPaused('GameScene'));
-    console.log('isGamePaused set to:', this.isGamePaused);
-    console.log('MenuScene camera visible:', this.cameras.main.visible);
-    console.log('MenuScene camera alpha:', this.cameras.main.alpha);
+    
+    // Ensure language is fully set before creating UI
+    const currentLang = getCurrentLanguage();
+    
+    // If language is not Ukrainian but should be, force a refresh
+    if (currentLang.code === 'en') {
+      const savedLang = localStorage.getItem('sand-castle-language');
+      if (savedLang === 'ua') {
+        await setLanguage('ua');
+      }
+    }
     
     this.createBackground();
     this.createTitle();
     this.createMenuButtons();
-    this.createLanguageSelector();
     this.createHighScoreDisplay();
     this.createDecorativeElements();
     this.setupMobileOptimizations();
-    console.log('MenuScene create completed - all UI elements created');
   }
 
   private createBackground(): void {
@@ -273,61 +274,7 @@ export class MenuScene extends Scene {
     return container;
   }
 
-  private createLanguageSelector(): void {
-    const currentLang = getCurrentLanguage();
-    
-    // Position in top-right corner
-    const flagSize = 40;
-    const x = this.scale.width - 60;
-    const y = 60;
 
-    this.languageButton = this.add.container(x, y);
-
-    // Flag background circle
-    const flagBg = this.add.circle(0, 0, flagSize/2 + 5, 0xFFFFFF);
-    flagBg.setStrokeStyle(3, 0x2C3E50);
-
-    // Flag emoji/text (simplified for web compatibility)
-    const flagText = this.add.text(0, 0, currentLang.code === 'ua' ? '🇺🇦' : '🇬🇧', {
-      fontSize: '24px'
-    });
-    flagText.setOrigin(0.5);
-
-    this.languageButton.add([flagBg, flagText]);
-    this.languageButton.setSize(flagSize + 10, flagSize + 10);
-    this.languageButton.setInteractive();
-
-    // Language toggle functionality
-    this.languageButton.on('pointerdown', () => {
-      const nextLang = currentLang.code === 'en' ? 'ua' : 'en';
-      setLanguage(nextLang);
-      
-      // Update flag display
-      flagText.setText(nextLang === 'ua' ? '🇺🇦' : '🇬🇧');
-      
-      // Add click animation
-      this.tweens.add({
-        targets: this.languageButton,
-        scaleX: 1.2,
-        scaleY: 1.2,
-        duration: 150,
-        yoyo: true
-      });
-    });
-
-    // Add hover effect
-    this.languageButton.on('pointerover', () => {
-      if (this.languageButton) {
-        this.languageButton.setScale(1.1);
-      }
-    });
-
-    this.languageButton.on('pointerout', () => {
-      if (this.languageButton) {
-        this.languageButton.setScale(1);
-      }
-    });
-  }
 
   private createHighScoreDisplay(): void {
     const highScore = this.getHighScore();
@@ -479,10 +426,6 @@ export class MenuScene extends Scene {
       this.titleText.setPosition(newWidth / 2, newHeight * 0.15);
     }
     
-    if (this.languageButton) {
-      this.languageButton.setPosition(newWidth - 60, 60);
-    }
-    
     // Update other elements similarly...
   }
 
@@ -514,9 +457,12 @@ export class MenuScene extends Scene {
   }
 
   private openSettings(): void {
-    // For now, just show a simple alert
-    // In the future, this could open a proper settings scene
-    console.log('Settings not implemented yet');
+    // Transition to SettingsScene with fade effect
+    this.cameras.main.fadeOut(300, 0, 0, 0);
+    
+    this.cameras.main.once('camerafadeoutcomplete', () => {
+      this.scene.start('SettingsScene');
+    });
   }
 
   shutdown(): void {

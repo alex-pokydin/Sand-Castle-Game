@@ -2,6 +2,7 @@ import { Game, AUTO } from 'phaser';
 import { MenuScene } from '@/scenes/MenuScene';
 import { GameScene } from '@/scenes/GameScene';
 import { GameOverScene } from '@/scenes/GameOverScene';
+import { SettingsScene } from '@/scenes/SettingsScene';
 import { GAME_CONFIG, PHYSICS_CONFIG } from '@/config/gameConfig';
 
 // Phaser game configuration
@@ -31,7 +32,7 @@ const config: Phaser.Types.Core.GameConfig = {
       height: 1080
     }
   },
-  scene: [MenuScene, GameScene, GameOverScene]
+  scene: [MenuScene, GameScene, GameOverScene, SettingsScene]
 };
 
 // Initialize the game
@@ -51,5 +52,15 @@ document.addEventListener('contextmenu', (e) => {
 document.addEventListener('touchmove', (e) => {
   e.preventDefault();
 }, { passive: false });
+
+// Debug functions for testing (available in browser console)
+import { debugI18n, testSetLanguage, testTranslation, clearSavedLanguage, testSystemLanguageDetection, checkMissingTranslations } from '@/i18n';
+
+(window as any).debugI18n = debugI18n;
+(window as any).testSetLanguage = testSetLanguage;
+(window as any).testTranslation = testTranslation;
+(window as any).clearSavedLanguage = clearSavedLanguage;
+(window as any).testSystemLanguageDetection = testSystemLanguageDetection;
+(window as any).checkMissingTranslations = checkMissingTranslations;
 
 export default game; 

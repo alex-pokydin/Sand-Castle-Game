@@ -1,0 +1,204 @@
+---
+alwaysApply: true
+---
+
+# Translation System Overview
+
+## How It Works
+
+The Sand Castle Game uses a **phrase-based translation system** where English phrases serve as translation keys. This approach makes the code more readable and reduces the need for abstract key names.
+
+### Core Principles
+
+1. **English as Source Language**: All text in the code uses English phrases directly
+2. **Automatic Translation**: Non-English languages look up translations from language files
+3. **Graceful Fallback**: Missing translations fall back to English with console warnings
+4. **Runtime Language Switching**: Languages can be changed without page reload
+
+## Language Initialization Priority
+
+The system follows this hierarchy when determining the initial language:
+
+1. **Saved Preference** (localStorage) - User's manual choice
+2. **System Language** - Browser's language setting
+3. **Default** - English (fallback)
+
+### System Language Detection
+
+- `uk` (Ukrainian) → `ua` (our Ukrainian code)
+- `en` (English) → `en` (our English code)
+
+## Usage in Code
+
+### Basic Translation
+```typescript
+// Always use English phrases as keys
+tSync('Sand Castle')        // Returns "Sand Castle" (EN) or "Пісочний Замок" (UA)
+tSync('Play Game')          // Returns "Play Game" (EN) or "Грати" (UA)
+tSync('Settings')           // Returns "Settings" (EN) or "Налаштування" (UA)
+```
+
+### With Variables
+```typescript
+// Use {{variable}} syntax for dynamic content
+tSync('Score: {{score}}', { score: 150 })  // "Score: 150" or "Очки: 150"
+tSync('Level {{level}}', { level: 3 })     // "Level 3" or "Рівень 3"
+```
+
+## Language Management
+
+### User Interface
+- **Settings Scene**: Manual language selection with visual feedback
+- **Persistent Storage**: Language choice saved to localStorage
+- **Real-time Updates**: UI updates immediately when language changes
+
+### Programmatic Control
+```typescript
+// Switch languages
+await setLanguage('ua')     // Switch to Ukrainian
+await setLanguage('en')     // Switch to English
+
+// Check current language
+const lang = getCurrentLanguage()  // { code: 'ua', name: 'Українська' }
+```
+
+## Adding New Languages
+
+1. **Create Translation File**: `src/i18n/translations/[code].ts`
+2. **Register Language**: Add to I18nManager constructor
+3. **Add Language Mapping**: Update system language detection if needed
+
+### Translation File Structure
+```typescript
+export const translations: Record<string, string> = {
+  "English Phrase": "Translated Phrase",
+  "Score: {{score}}": "Очки: {{score}}",
+  // ... all phrases that need translation
+};
+```
+
+## Development Tools
+
+### Console Debug Functions
+```javascript
+// Available in browser console
+debugI18n()                    // Check current state
+checkMissingTranslations()     // Audit missing translations
+testSetLanguage('ua')          // Switch language for testing
+clearSavedLanguage()           // Reset to system detection
+```
+
+### Missing Translation Warnings
+When a translation is missing, the console shows:
+```
+[I18n] Missing translation for key "New Feature" in language "ua". Falling back to English.
+```
+
+## Best Practices
+
+1. **Use Descriptive English Phrases**: Make keys self-documenting
+2. **Keep Keys Consistent**: Use the same phrase across the app
+3. **Test Both Languages**: Verify translations work correctly
+4. **Add Missing Translations**: Respond to console warnings
+5. **Use Variables Sparingly**: Keep dynamic content minimal
+
+# Translation System Overview
+
+## How It Works
+
+The Sand Castle Game uses a **phrase-based translation system** where English phrases serve as translation keys. This approach makes the code more readable and reduces the need for abstract key names.
+
+### Core Principles
+
+1. **English as Source Language**: All text in the code uses English phrases directly
+2. **Automatic Translation**: Non-English languages look up translations from language files
+3. **Graceful Fallback**: Missing translations fall back to English with console warnings
+4. **Runtime Language Switching**: Languages can be changed without page reload
+
+## Language Initialization Priority
+
+The system follows this hierarchy when determining the initial language:
+
+1. **Saved Preference** (localStorage) - User's manual choice
+2. **System Language** - Browser's language setting
+3. **Default** - English (fallback)
+
+### System Language Detection
+
+- `uk` (Ukrainian) → `ua` (our Ukrainian code)
+- `en` (English) → `en` (our English code)
+
+## Usage in Code
+
+### Basic Translation
+```typescript
+// Always use English phrases as keys
+tSync('Sand Castle')        // Returns "Sand Castle" (EN) or "Пісочний Замок" (UA)
+tSync('Play Game')          // Returns "Play Game" (EN) or "Грати" (UA)
+tSync('Settings')           // Returns "Settings" (EN) or "Налаштування" (UA)
+```
+
+### With Variables
+```typescript
+// Use {{variable}} syntax for dynamic content
+tSync('Score: {{score}}', { score: 150 })  // "Score: 150" or "Очки: 150"
+tSync('Level {{level}}', { level: 3 })     // "Level 3" or "Рівень 3"
+```
+
+## Language Management
+
+### User Interface
+- **Settings Scene**: Manual language selection with visual feedback
+- **Persistent Storage**: Language choice saved to localStorage
+- **Real-time Updates**: UI updates immediately when language changes
+
+### Programmatic Control
+```typescript
+// Switch languages
+await setLanguage('ua')     // Switch to Ukrainian
+await setLanguage('en')     // Switch to English
+
+// Check current language
+const lang = getCurrentLanguage()  // { code: 'ua', name: 'Українська' }
+```
+
+## Adding New Languages
+
+1. **Create Translation File**: `src/i18n/translations/[code].ts`
+2. **Register Language**: Add to I18nManager constructor
+3. **Add Language Mapping**: Update system language detection if needed
+
+### Translation File Structure
+```typescript
+export const translations: Record<string, string> = {
+  "English Phrase": "Translated Phrase",
+  "Score: {{score}}": "Очки: {{score}}",
+  // ... all phrases that need translation
+};
+```
+
+## Development Tools
+
+### Console Debug Functions
+```javascript
+// Available in browser console
+debugI18n()                    // Check current state
+checkMissingTranslations()     // Audit missing translations
+testSetLanguage('ua')          // Switch language for testing
+clearSavedLanguage()           // Reset to system detection
+```
+
+### Missing Translation Warnings
+When a translation is missing, the console shows:
+```
+[I18n] Missing translation for key "New Feature" in language "ua". Falling back to English.
+```
+
+## Best Practices
+
+1. **Use Descriptive English Phrases**: Make keys self-documenting
+2. **Keep Keys Consistent**: Use the same phrase across the app
+3. **Test Both Languages**: Verify translations work correctly
+4. **Add Missing Translations**: Respond to console warnings
+5. **Use Variables Sparingly**: Keep dynamic content minimal
+
