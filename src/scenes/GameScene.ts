@@ -84,8 +84,11 @@ export class GameScene extends Scene {
       fontFamily: 'Arial'
     });
     
-    // Lives display
-    this.livesText = this.add.text(20, 100, `Lives: ${this.gameState.lives}`, {
+    // Parts Left display (remaining parts to complete current level)
+    const initialLevel = LEVELS[this.currentLevelIndex];
+    const initialPartsLeft = initialLevel ? initialLevel.targetParts : 0;
+
+    this.livesText = this.add.text(20, 100, `Parts Left: ${initialPartsLeft}`, {
       fontSize: '20px',
       color: '#E74C3C',
       fontFamily: 'Arial'
@@ -813,7 +816,9 @@ export class GameScene extends Scene {
       this.scoreText.setText(`Score: ${this.gameState.score}`);
     }
     if (this.livesText) {
-      this.livesText.setText(`Lives: ${this.gameState.lives}`);
+      const currentLevel = LEVELS[this.currentLevelIndex];
+      const partsLeft = currentLevel ? Math.max(0, currentLevel.targetParts - this.droppedParts.length) : 0;
+      this.livesText.setText(`Parts Left: ${partsLeft}`);
     }
   }
   
