@@ -2,6 +2,8 @@ import { Scene } from 'phaser';
 import { CastlePart } from '@/objects/CastlePart';
 import { GAME_CONFIG, LEVELS, COLORS, PartType } from '@/config/gameConfig';
 import { GameState } from '@/types/Game';
+import { StabilityManager } from '@/objects/StabilityManager';
+import { AudioManager } from '@/utils/AudioManager';
 
 export class GameScene extends Scene {
   private currentPart?: CastlePart;
@@ -11,11 +13,18 @@ export class GameScene extends Scene {
   private direction: number = 1; // 1 for right, -1 for left
   private levelText?: Phaser.GameObjects.Text;
   private scoreText?: Phaser.GameObjects.Text;
+  private livesText?: Phaser.GameObjects.Text;
   private instructionText?: Phaser.GameObjects.Text;
   private currentLevelIndex: number = 0;
+  private stabilityManager: StabilityManager;
+  private audioManager: AudioManager;
+
   
   constructor() {
     super({ key: 'GameScene' });
+    this.stabilityManager = new StabilityManager();
+    this.audioManager = AudioManager.getInstance();
+    
     this.gameState = {
       currentLevel: 1,
       score: 0,
@@ -26,6 +35,9 @@ export class GameScene extends Scene {
   }
   
   create(): void {
+    // Load audio
+    this.audioManager.loadBasicSounds();
+    
     this.createBackground();
     this.createUI();
     this.setupInput();
@@ -65,6 +77,13 @@ export class GameScene extends Scene {
       fontFamily: 'Arial'
     });
     
+    // Lives display
+    this.livesText = this.add.text(20, 100, `Lives: ${this.gameState.lives}`, {
+      fontSize: '20px',
+      color: '#E74C3C',
+      fontFamily: 'Arial'
+    });
+    
     // Instructions
     this.instructionText = this.add.text(
       this.scale.width / 2,
@@ -88,17 +107,27 @@ export class GameScene extends Scene {
   }
   
   private setupPhysics(): void {
-    // Enable Arcade Physics
-    this.physics.world.gravity.y = 0; // We'll handle gravity per object
-    
-    // Create static ground for collision
-    const ground = this.add.rectangle(
+    // Create static ground for collision using Matter.js
+    this.add.rectangle(
       this.scale.width / 2,
       this.scale.height - 25,
       this.scale.width,
-      50
+      50,
+      COLORS.SAND_DARK
     );
-    this.physics.add.existing(ground, true); // true = static body
+    
+    // Add Matter.js physics to ground
+    this.matter.add.rectangle(
+      this.scale.width / 2,
+      this.scale.height - 25,
+      this.scale.width,
+      50,
+      { 
+        isStatic: true,
+        friction: 0.8,
+        frictionStatic: 1.0
+      }
+    );
   }
   
   private spawnNextPart(): void {
@@ -159,10 +188,26 @@ export class GameScene extends Scene {
     
     // Drop the current part
     this.currentPart.drop(GAME_CONFIG.gravity);
-    this.droppedParts.push(this.currentPart);
+    const droppedPart = this.currentPart;
+    this.droppedParts.push(droppedPart);
     
-    // Add collision detection with other parts and ground
-    this.setupPartCollisions(this.currentPart);
+    // Wait for part to settle and then check for stability and score
+    this.time.delayedCall(2000, () => {
+      if (droppedPart.isPartDropped()) {
+        // Calculate stability points
+        const stabilityPoints = droppedPart.getStabilityPoints();
+        this.gameState.score += stabilityPoints;
+        
+        // Check for castle collapse
+        const allPartData = this.droppedParts.map(part => part.getPartData());
+        if (this.stabilityManager.hasCollapsed(allPartData)) {
+          this.handleCastleCollapse();
+          return;
+        }
+        
+        this.updateUI();
+      }
+    });
     
     // Spawn next part after a short delay
     this.time.delayedCall(1000, () => {
@@ -170,28 +215,70 @@ export class GameScene extends Scene {
     });
     
     this.currentPart = undefined;
-    
-    // Update score
-    this.gameState.score += 10;
-    this.updateUI();
   }
   
-  private setupPartCollisions(part: CastlePart): void {
-    // Collision with ground
-    const ground = this.physics.world.staticBodies.entries[0];
-    if (ground) {
-      this.physics.add.collider(part, ground);
-    }
+  private handleCastleCollapse(): void {
+    this.gameState.isGameActive = false;
     
-    // Collision with other dropped parts
-    this.droppedParts.forEach(otherPart => {
-      if (otherPart !== part) {
-        this.physics.add.collider(part, otherPart);
+    // Play collapse sound
+    this.audioManager.playCollapseSound();
+    
+    // Show collapse message
+    const collapseText = this.add.text(
+      this.scale.width / 2,
+      this.scale.height / 2,
+      'Castle Collapsed!\nTry Again',
+      {
+        fontSize: '28px',
+        color: '#E74C3C',
+        fontFamily: 'Arial',
+        align: 'center'
       }
+    );
+    collapseText.setOrigin(0.5);
+    
+    // Restart level after delay
+    this.time.delayedCall(3000, () => {
+      this.restartLevel();
     });
   }
   
+  private restartLevel(): void {
+    // Clear dropped parts
+    this.droppedParts.forEach(part => part.destroy());
+    this.droppedParts = [];
+    
+    // Reset game state
+    this.gameState.isGameActive = true;
+    this.gameState.lives--;
+    
+    if (this.gameState.lives <= 0) {
+      this.gameOver();
+    } else {
+      this.spawnNextPart();
+      this.updateUI();
+    }
+  }
+  
+  private gameOver(): void {
+    const gameOverText = this.add.text(
+      this.scale.width / 2,
+      this.scale.height / 2,
+      `Game Over!\nFinal Score: ${this.gameState.score}`,
+      {
+        fontSize: '28px',
+        color: '#E74C3C',
+        fontFamily: 'Arial',
+        align: 'center'
+      }
+    );
+    gameOverText.setOrigin(0.5);
+  }
+  
   private completeLevel(): void {
+    // Play level complete sound
+    this.audioManager.playLevelCompleteSound();
+    
     this.gameState.score += 100; // Bonus for completing level
     this.currentLevelIndex++;
     
@@ -259,6 +346,9 @@ export class GameScene extends Scene {
     }
     if (this.scoreText) {
       this.scoreText.setText(`Score: ${this.gameState.score}`);
+    }
+    if (this.livesText) {
+      this.livesText.setText(`Lives: ${this.gameState.lives}`);
     }
   }
   

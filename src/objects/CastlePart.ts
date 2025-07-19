@@ -1,17 +1,27 @@
 import { Scene } from 'phaser';
 import { CastlePartData } from '@/types/Game';
 import { COLORS, PartType } from '@/config/gameConfig';
+import { StabilityManager } from '@/objects/StabilityManager';
+import { AudioManager } from '@/utils/AudioManager';
 
 export class CastlePart extends Phaser.GameObjects.Rectangle {
   private partData: CastlePartData;
   private partType: PartType;
   private isDropped: boolean = false;
   private shadow?: Phaser.GameObjects.Rectangle;
+  private stabilityManager: StabilityManager;
+  private audioManager: AudioManager;
+  private stabilityGlow?: Phaser.GameObjects.Arc;
+  private lastStabilityLevel: 'stable' | 'warning' | 'unstable' = 'stable';
+  private matterBody?: MatterJS.BodyType;
   
   constructor(scene: Scene, x: number, y: number, width: number, height: number, partType: PartType) {
     super(scene, x, y, width, height, COLORS.SAND);
     
     this.partType = partType;
+    this.stabilityManager = new StabilityManager();
+    this.audioManager = AudioManager.getInstance();
+    
     this.partData = {
       id: `part_${Date.now()}_${Math.random()}`,
       x,
@@ -27,6 +37,9 @@ export class CastlePart extends Phaser.GameObjects.Rectangle {
     
     // Create shadow for visual feedback
     this.createShadow();
+    
+    // Create stability glow (initially hidden)
+    this.createStabilityGlow();
     
     // Add to scene
     scene.add.existing(this);
@@ -66,6 +79,19 @@ export class CastlePart extends Phaser.GameObjects.Rectangle {
     }
   }
   
+  private createStabilityGlow(): void {
+    if (this.scene) {
+      this.stabilityGlow = this.scene.add.circle(
+        this.x,
+        this.y,
+        Math.max(this.width, this.height) / 2 + 5,
+        COLORS.GREEN,
+        0.3
+      );
+      this.stabilityGlow.setVisible(false);
+    }
+  }
+  
   public moveHorizontally(speed: number, deltaTime: number): void {
     if (!this.isDropped) {
       this.x += speed * deltaTime;
@@ -83,9 +109,12 @@ export class CastlePart extends Phaser.GameObjects.Rectangle {
     }
   }
   
-  public drop(gravity: number): void {
+  public drop(_gravity: number): void {
     if (!this.isDropped) {
       this.isDropped = true;
+      
+      // Play drop sound
+      this.audioManager.playDropSound();
       
       // Remove shadow when part is dropped
       if (this.shadow) {
@@ -93,34 +122,92 @@ export class CastlePart extends Phaser.GameObjects.Rectangle {
         this.shadow = undefined;
       }
       
-      // Enable physics
-      this.scene.physics.world.enable(this);
-      const body = this.body as Phaser.Physics.Arcade.Body;
-      body.setGravityY(gravity);
-      body.setBounce(0.1); // Slight bounce for sand-like feel
-      body.setCollideWorldBounds(true);
+      // Enable Matter.js physics with sand-like properties
+      this.scene.matter.add.gameObject(this, {
+        shape: 'rectangle',
+        density: 0.8,      // Sand density
+        friction: 0.3,     // Sand friction
+        frictionStatic: 0.8, // High static friction
+        restitution: 0.1,  // Low bounce for sand
+        chamfer: { radius: 2 }, // Slightly rounded edges
+      });
+      
+      // Store Matter.js body reference
+      this.matterBody = this.body as MatterJS.BodyType;
+      
+      // Set collision category and mask
+      if (this.matterBody) {
+        this.scene.matter.world.add(this.matterBody);
+      }
     }
   }
   
   public checkStability(): boolean {
-    if (!this.isDropped) return true;
+    if (!this.isDropped || !this.matterBody) return true;
     
-    const body = this.body as Phaser.Physics.Arcade.Body;
-    if (!body) return true;
+    // Get current velocity from Matter.js body
+    const velocity = this.matterBody.velocity;
+    this.partData.velocity = { x: velocity.x, y: velocity.y };
     
-    // Simple stability check based on velocity
-    const velocity = Math.abs(body.velocity.x) + Math.abs(body.velocity.y);
-    this.partData.isStable = velocity < 10;
+    // Update position
+    this.partData.x = this.x;
+    this.partData.y = this.y;
     
-    // Update visual feedback
-    this.updateStabilityVisual();
+    // Check stability using StabilityManager
+    const stabilityLevel = this.stabilityManager.getStabilityLevel(this.partData);
     
+    // Update visual feedback if stability changed
+    if (stabilityLevel !== this.lastStabilityLevel) {
+      this.updateStabilityVisual(stabilityLevel);
+      
+      // Play appropriate sound for placement
+      if (this.lastStabilityLevel === 'unstable' && stabilityLevel !== 'unstable') {
+        this.audioManager.playPlacementSound(stabilityLevel);
+      }
+      
+      this.lastStabilityLevel = stabilityLevel;
+    }
+    
+    this.partData.isStable = stabilityLevel === 'stable';
     return this.partData.isStable;
   }
   
-  private updateStabilityVisual(): void {
-    // TODO: Add visual stability feedback (color changes) in next phase
-    // For foundation phase, keeping it simple
+  private updateStabilityVisual(stabilityLevel: 'stable' | 'warning' | 'unstable'): void {
+    if (!this.stabilityGlow) return;
+    
+    // Update glow position to follow part
+    this.stabilityGlow.x = this.x;
+    this.stabilityGlow.y = this.y;
+    
+    switch (stabilityLevel) {
+      case 'stable':
+        this.stabilityGlow.setFillStyle(COLORS.GREEN, 0.3);
+        this.stabilityGlow.setVisible(true);
+        // Fade out after 1 second
+        this.scene.time.delayedCall(1000, () => {
+          if (this.stabilityGlow) this.stabilityGlow.setVisible(false);
+        });
+        break;
+        
+      case 'warning':
+        this.stabilityGlow.setFillStyle(COLORS.YELLOW, 0.4);
+        this.stabilityGlow.setVisible(true);
+        break;
+        
+      case 'unstable':
+        this.stabilityGlow.setFillStyle(COLORS.RED, 0.5);
+        this.stabilityGlow.setVisible(true);
+        // Add wobble effect
+        this.scene.tweens.add({
+          targets: this,
+          scaleX: 1.05,
+          scaleY: 1.05,
+          duration: 100,
+          yoyo: true,
+          repeat: -1
+        });
+        break;
+    }
   }
   
   public getPartData(): CastlePartData {
@@ -128,9 +215,9 @@ export class CastlePart extends Phaser.GameObjects.Rectangle {
       ...this.partData,
       x: this.x,
       y: this.y,
-      velocity: this.body ? {
-        x: (this.body as Phaser.Physics.Arcade.Body).velocity.x,
-        y: (this.body as Phaser.Physics.Arcade.Body).velocity.y
+      velocity: this.matterBody ? {
+        x: this.matterBody.velocity.x,
+        y: this.matterBody.velocity.y
       } : { x: 0, y: 0 }
     };
   }
@@ -141,5 +228,24 @@ export class CastlePart extends Phaser.GameObjects.Rectangle {
   
   public isPartDropped(): boolean {
     return this.isDropped;
+  }
+  
+  public getStabilityPoints(): number {
+    return this.stabilityManager.calculateStabilityPoints(this.partData);
+  }
+  
+  public destroy(): void {
+    // Clean up visual effects
+    if (this.shadow) {
+      this.shadow.destroy();
+    }
+    if (this.stabilityGlow) {
+      this.stabilityGlow.destroy();
+    }
+    
+    // Stop any running tweens
+    this.scene.tweens.killTweensOf(this);
+    
+    super.destroy();
   }
 } 

@@ -10,10 +10,11 @@ const config: Phaser.Types.Core.GameConfig = {
   parent: 'game-container',
   backgroundColor: '#87CEEB',
   physics: {
-    default: 'arcade',
-    arcade: {
-      gravity: { x: 0, y: 0 }, // We'll handle gravity per object
-      debug: false
+    default: 'matter',
+    matter: {
+      gravity: { x: 0, y: 0.8 }, // Matter.js gravity
+      debug: false,
+      enableSleeping: true // Improve performance
     }
   },
   scale: {
