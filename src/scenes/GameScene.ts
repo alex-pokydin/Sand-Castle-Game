@@ -732,18 +732,25 @@ export class GameScene extends Scene {
   private completeLevel(): void {
     // Play level complete sound
     this.audioManager.playLevelCompleteSound();
-    
-    this.gameState.score += 100; // Bonus for completing level
+
+    // Award bonus for completing the level
+    this.gameState.score += 100;
+
+    // Advance to next level index
     this.currentLevelIndex++;
-    
+
+    // If we have progressed beyond the predefined LEVELS array, generate and append a new level
     if (this.currentLevelIndex >= LEVELS.length) {
-      // Game complete!
-      this.gameWon();
-    } else {
-      // Next level
-      this.gameState.currentLevel++;
-      this.nextLevel();
+      const newLevelId = this.currentLevelIndex + 1; // Level IDs are 1-based
+      const newLevel = generateLevel(newLevelId);
+      LEVELS.push(newLevel);
     }
+
+    // Increment the visible/current level counter
+    this.gameState.currentLevel++;
+
+    // Proceed to the next level setup
+    this.nextLevel();
   }
   
   private nextLevel(): void {
@@ -789,23 +796,6 @@ export class GameScene extends Scene {
     });
     
     this.updateUI();
-  }
-  
-  private gameWon(): void {
-    this.gameState.isGameActive = false;
-    
-    const winText = this.add.text(
-      this.scale.width / 2,
-      this.scale.height / 2,
-      `Congratulations!\nYou built all the castles!\nFinal Score: ${this.gameState.score}`,
-      {
-        fontSize: '28px',
-        color: '#27AE60',
-        fontFamily: 'Arial',
-        align: 'center'
-      }
-    );
-    winText.setOrigin(0.5);
   }
   
   private updateUI(): void {
