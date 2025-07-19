@@ -1,0 +1,26 @@
+{
+  "name": "sand-castle-game",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "phaser": "^3.70.0",
+    "howler": "^2.2.3",
+    "firebase": "^10.0.0"
+  },
+  "devDependencies": {
+    "vite": "^4.4.0",
+    "typescript": "^5.0.0",
+    "@types/howler": "^2.2.7",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.45.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint src --ext .ts,.tsx",
+    "deploy": "npm run build && firebase deploy"
+  }
+} 
