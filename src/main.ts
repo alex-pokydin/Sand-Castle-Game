@@ -1,6 +1,6 @@
 import { Game, AUTO } from 'phaser';
 import { GameScene } from '@/scenes/GameScene';
-import { GAME_CONFIG } from '@/config/gameConfig';
+import { GAME_CONFIG, PHYSICS_CONFIG } from '@/config/gameConfig';
 
 // Phaser game configuration
 const config: Phaser.Types.Core.GameConfig = {
@@ -12,7 +12,7 @@ const config: Phaser.Types.Core.GameConfig = {
   physics: {
     default: 'matter',
     matter: {
-      gravity: { x: 0, y: 0.8 }, // Matter.js gravity
+      gravity: { x: 0, y: PHYSICS_CONFIG.gravity }, // Use config gravity instead of hardcoded 0.8
       debug: false,
       enableSleeping: true // Improve performance
     }

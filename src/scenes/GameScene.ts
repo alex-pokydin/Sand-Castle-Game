@@ -110,17 +110,21 @@ export class GameScene extends Scene {
   
   private setupPhysics(): void {
     // Configure Matter.js physics engine for sand-like behavior
-    this.matter.world.setGravity(0, PHYSICS_CONFIG.gravity); // Use configured gravity
+    this.matter.world.setGravity(0, PHYSICS_CONFIG.gravity);
     
-    // Add world bounds to prevent parts from escaping  
-    this.matter.world.setBounds(0, 0, this.scale.width, this.scale.height, 64, true, true, false, true);
+    // Remove conflicting world bounds - let the ground handle bottom collision
+    // Only add side and top bounds to prevent parts from escaping sideways
+    this.matter.world.setBounds(0, 0, this.scale.width, this.scale.height, 32, true, true, true, false);
     
     // Create static ground for collision using Matter.js with improved properties
+    const groundY = this.scale.height - 25;
+    const groundHeight = 50;
+    
     const groundGraphics = this.add.rectangle(
       this.scale.width / 2,
-      this.scale.height - 25,
+      groundY,
       this.scale.width,
-      50,
+      groundHeight,
       COLORS.SAND_DARK
     );
     
@@ -130,7 +134,7 @@ export class GameScene extends Scene {
       friction: PHYSICS_CONFIG.ground.friction,
       frictionStatic: PHYSICS_CONFIG.ground.frictionStatic,
       restitution: PHYSICS_CONFIG.ground.restitution,
-      // Set collision filtering to match parts
+      // Ensure ground collision filter matches parts
       collisionFilter: {
         category: 0x0001,
         mask: 0x0001,

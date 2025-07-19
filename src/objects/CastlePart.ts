@@ -131,10 +131,9 @@ export class CastlePart extends Phaser.GameObjects.Rectangle {
         restitution: PHYSICS_CONFIG.sand.restitution,
         frictionAir: PHYSICS_CONFIG.sand.frictionAir,
         chamfer: { radius: 2 }, // Slightly rounded edges
-        // Add constraints to prevent excessive movement
-        inertia: Infinity, // Prevent wild spinning
-        inverseInertia: 0,
-        // Add position constraints
+        // Remove problematic inertia settings - let Matter.js handle this naturally
+        // inertia: Infinity, // Remove this
+        // inverseInertia: 0, // Remove this
         plugin: {
           attractors: []
         }
@@ -152,11 +151,11 @@ export class CastlePart extends Phaser.GameObjects.Rectangle {
           group: 0
         };
         
-        // Apply initial downward velocity (controlled drop)
-        this.scene.matter.body.setVelocity(this.matterBody, { x: 0, y: 2 });
+        // Apply initial downward velocity (controlled drop) - reduced to prevent conflicts
+        this.scene.matter.body.setVelocity(this.matterBody, { x: 0, y: 1 });
         
-        // Add to world with proper constraints
-        this.scene.matter.world.add(this.matterBody);
+        // Don't add to world again - this.scene.matter.add.gameObject() already did this
+        // this.scene.matter.world.add(this.matterBody); // Remove this line
       }
     }
   }
