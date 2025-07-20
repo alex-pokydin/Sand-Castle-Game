@@ -3,7 +3,6 @@ import {
   getDoc, 
   setDoc, 
   updateDoc, 
-  deleteDoc,
   collection, 
   query, 
   where, 
@@ -12,12 +11,9 @@ import {
   getDocs,
   addDoc,
   Timestamp,
-  onSnapshot,
   writeBatch,
   increment,
-  serverTimestamp,
-  Query,
-  DocumentData
+  serverTimestamp
 } from 'firebase/firestore';
 import { User } from 'firebase/auth';
 
@@ -31,16 +27,10 @@ import {
   LeaderboardType,
   LeaderboardResponse,
   CloudSave,
-  Achievement,
-  UserAchievement,
-  AchievementResponse,
-  SharedContent,
-  GameNotification,
-  FirebaseResponse,
   COLLECTIONS,
   FirebaseError
 } from '@/types/Firebase';
-import { GameState, CastlePartData } from '@/types/Game';
+import { GameState } from '@/types/Game';
 
 export class FirebaseService {
   private static instance: FirebaseService;
@@ -303,9 +293,9 @@ export class FirebaseService {
       const leaderboardTypes: LeaderboardType[] = ['global_high_score'];
       
       // Add weekly and monthly leaderboards
-      const now = new Date();
-      const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay());
-      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      // const now = new Date();
+      // const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay());
+      // const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
       
       const batch = writeBatch(firestore);
       

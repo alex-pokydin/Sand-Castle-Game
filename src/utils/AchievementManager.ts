@@ -1,13 +1,8 @@
 import { 
   Achievement, 
   UserAchievement, 
-  AchievementResponse,
-  AchievementCategory,
-  AchievementType,
-  AchievementRequirements,
-  AchievementRarity
+  AchievementResponse
 } from '@/types/Firebase';
-import { GameState, CastlePartData } from '@/types/Game';
 import { firebaseService } from './FirebaseService';
 
 export interface AchievementProgress {

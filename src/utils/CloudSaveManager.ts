@@ -1,7 +1,6 @@
 import { firebaseService } from './FirebaseService';
 import { phaserStateManager, PhaserGameState } from './PhaserStateManager';
 import { CloudSave } from '@/types/Firebase';
-import { GameState } from '@/types/Game';
 import { Game } from 'phaser';
 
 export interface CloudSaveOptions {

@@ -3,8 +3,7 @@ import { achievementManager } from './AchievementManager';
 import { 
   SharedContent, 
   Achievement, 
-  CastleSnapshot,
-  LeaderboardEntry 
+  CastleSnapshot
 } from '@/types/Firebase';
 import { CastlePartData } from '@/types/Game';
 import { tSync } from '@/i18n';
