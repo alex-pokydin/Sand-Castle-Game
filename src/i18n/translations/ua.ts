@@ -159,7 +159,14 @@ export const translations: Record<string, string> = {
   "Audio Settings": "Налаштування Звуку",
   "Background Music": "Фонова Музика",
   "Music Volume": "Гучність Музики",
-  "Sound Effects": "Звукові Ефекти"
+  "Sound Effects": "Звукові Ефекти",
+
+  // New Game UI Elements
+  "Total Installed: {{count}}": "Всього Встановлено: {{count}}",
+  "Castles Rewarded: {{count}}": "Замків Нагороджено: {{count}}",
+  "Wrong Parts: {{count}}": "Неправильних Частин: {{count}}",
+  "Combo: {{count}}x": "Комбо: {{count}}x",
+  "Level Progress": "Прогрес Рівня"
 };
 
 export default translations; 

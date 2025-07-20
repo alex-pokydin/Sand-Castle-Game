@@ -1,8 +1,37 @@
 import { Scene } from 'phaser';
 import { CastlePartData, PartLevel, PlacementResult } from '@/types/Game';
-import { COLORS, PHYSICS_CONFIG, getPartColor, PLACEMENT_CONFIG } from '@/config/gameConfig';
+import { COLORS, PHYSICS_CONFIG, getPartColor, PLACEMENT_CONFIG, SCORING_CONFIG } from '@/config/gameConfig';
 import { StabilityManager } from '@/objects/StabilityManager';
 import { AudioManager } from '@/utils/AudioManager';
+import { VisualEffects } from '@/utils/VisualEffects';
+
+// Enhanced placement result with scoring information
+export interface EnhancedPlacementResult extends PlacementResult {
+  scoreData: {
+    placementBonus: number;
+    levelBonus: number;
+    totalBonus: number;
+    feedbackMessage: string;
+  };
+  isLevelSix: boolean;
+  shouldTriggerCastleClear: boolean;
+}
+
+// Ground collision result
+export interface GroundCollisionResult {
+  isTouchingGround: boolean;
+  shouldApplyPenalty: boolean;
+  penaltyAmount: number;
+  penaltyMessage: string;
+}
+
+// Movement state for autonomous part movement
+export interface PartMovementState {
+  speed: number;
+  direction: number; // 1 or -1
+  boundaryLeft: number;
+  boundaryRight: number;
+}
 
 export class CastlePart extends Phaser.GameObjects.Rectangle {
   private partData: CastlePartData;
@@ -11,11 +40,15 @@ export class CastlePart extends Phaser.GameObjects.Rectangle {
   private shadow?: Phaser.GameObjects.Rectangle;
   private stabilityManager: StabilityManager;
   private audioManager: AudioManager;
+  private visualEffects: VisualEffects;
   private stabilityGlow?: Phaser.GameObjects.Arc;
   private lastStabilityLevel: 'stable' | 'warning' | 'unstable' = 'stable';
   private matterBody?: MatterJS.BodyType;
   private levelDisplay?: Phaser.GameObjects.Text;
   private customGraphics?: Phaser.GameObjects.Graphics; // Custom graphics overlay
+  
+  // Autonomous movement state
+  private movementState?: PartMovementState;
   
   constructor(scene: Scene, x: number, y: number, width: number, height: number, partLevel: PartLevel) {
     // Create Rectangle with base color
@@ -25,6 +58,7 @@ export class CastlePart extends Phaser.GameObjects.Rectangle {
     this.partLevel = partLevel;
     this.stabilityManager = new StabilityManager();
     this.audioManager = AudioManager.getInstance();
+    this.visualEffects = new VisualEffects(scene);
     
     this.partData = {
       id: `part_${Date.now()}_${Math.random()}`,
@@ -271,16 +305,9 @@ export class CastlePart extends Phaser.GameObjects.Rectangle {
   }
   
   private createStabilityGlow(): void {
-    if (this.scene) {
-      this.stabilityGlow = this.scene.add.circle(
-        this.x,
-        this.y,
-        Math.max(this.width, this.height) / 2 + 5,
-        COLORS.GREEN,
-        0.3
-      );
-      this.stabilityGlow.setVisible(false);
-    }
+    // Stability glow circles removed - replaced with modern visual effects
+    // Legacy red/green circles that were confusing to players
+    this.stabilityGlow = undefined;
   }
   
   /**
@@ -293,8 +320,15 @@ export class CastlePart extends Phaser.GameObjects.Rectangle {
     if (this.customGraphics) {
       this.customGraphics.setPosition(this.x - this.width / 2, this.y - this.height / 2);
     }
+    
+    // Update level display position
     if (this.levelDisplay) {
       this.levelDisplay.setPosition(this.x, this.y);
+    }
+    
+    // Update shadow position (shadow stays at bottom but follows x position)
+    if (this.shadow) {
+      this.shadow.setPosition(this.x, this.shadow.y);
     }
   }
   
@@ -421,79 +455,23 @@ export class CastlePart extends Phaser.GameObjects.Rectangle {
   }
   
   private updateStabilityVisual(stabilityLevel: 'stable' | 'warning' | 'unstable'): void {
-    if (!this.stabilityGlow || !this.scene) return;
+    // Legacy glow circles removed - use modern particle effects instead
+    if (!this.scene) return;
     
-    // Update glow position to follow part
-    this.stabilityGlow.x = this.x;
-    this.stabilityGlow.y = this.y;
-    
-    // Stop any existing tweens
-    if (this.scene && this.scene.tweens) {
+    // Stop any existing tweens on the part
+    if (this.scene.tweens) {
       this.scene.tweens.killTweensOf(this);
-      this.scene.tweens.killTweensOf(this.stabilityGlow);
     }
     
     switch (stabilityLevel) {
       case 'stable':
-        // Clear success indication
-        this.stabilityGlow.setFillStyle(COLORS.GREEN, 0.6);
-        this.stabilityGlow.setRadius(Math.max(this.width, this.height) / 2 + 10);
-        this.stabilityGlow.setVisible(true);
-        
-        // Success pulse animation
-        if (this.scene && this.scene.tweens) {
-          this.scene.tweens.add({
-            targets: this.stabilityGlow,
-            scaleX: 1.3,
-            scaleY: 1.3,
-            alpha: 0.8,
-            duration: 300,
-            ease: 'Back.easeOut',
-            yoyo: true,
-            onComplete: () => {
-              // Keep visible for 2 seconds, then fade out
-              if (this.scene && this.scene.time) {
-                this.scene.time.delayedCall(2000, () => {
-                  if (this.stabilityGlow && this.scene && this.scene.tweens) {
-                    this.scene.tweens.add({
-                      targets: this.stabilityGlow,
-                      alpha: 0,
-                      duration: 500,
-                      onComplete: () => {
-                        if (this.stabilityGlow) this.stabilityGlow.setVisible(false);
-                      }
-                    });
-                  }
-                });
-              }
-            }
-          });
-        }
-        
-        // Add success particle effect
+        // Subtle success particle effect only
         this.createSuccessParticles();
         break;
         
       case 'warning':
-        // Warning indication - yellow pulsing
-        this.stabilityGlow.setFillStyle(COLORS.YELLOW, 0.5);
-        this.stabilityGlow.setRadius(Math.max(this.width, this.height) / 2 + 8);
-        this.stabilityGlow.setVisible(true);
-        
-        // Warning pulse
-        if (this.scene && this.scene.tweens) {
-          this.scene.tweens.add({
-            targets: this.stabilityGlow,
-            scaleX: 1.1,
-            scaleY: 1.1,
-            alpha: 0.3,
-            duration: 500,
-            ease: 'Sine.easeInOut',
-            yoyo: true,
-            repeat: -1
-          });
-          
-          // Slight shake on the part
+        // Slight shake on the part only
+        if (this.scene.tweens) {
           this.scene.tweens.add({
             targets: this,
             x: this.x - 1,
@@ -505,23 +483,8 @@ export class CastlePart extends Phaser.GameObjects.Rectangle {
         break;
         
       case 'unstable':
-        // Danger indication - red flashing
-        this.stabilityGlow.setFillStyle(COLORS.RED, 0.7);
-        this.stabilityGlow.setRadius(Math.max(this.width, this.height) / 2 + 12);
-        this.stabilityGlow.setVisible(true);
-        
-        // Urgent flashing
-        if (this.scene && this.scene.tweens) {
-          this.scene.tweens.add({
-            targets: this.stabilityGlow,
-            alpha: 0.2,
-            duration: 200,
-            ease: 'Power2',
-            yoyo: true,
-            repeat: -1
-          });
-          
-          // Strong wobble effect
+        // Strong wobble effect and particles
+        if (this.scene.tweens) {
           this.scene.tweens.add({
             targets: this,
             scaleX: 1.05,
@@ -530,7 +493,7 @@ export class CastlePart extends Phaser.GameObjects.Rectangle {
             duration: 150,
             ease: 'Sine.easeInOut',
             yoyo: true,
-            repeat: -1
+            repeat: 3 // Limited repeats instead of infinite
           });
         }
         
@@ -709,7 +672,7 @@ export class CastlePart extends Phaser.GameObjects.Rectangle {
   /**
    * Validate if this part can be placed on the given existing parts
    */
-  public validatePlacement(existingParts: CastlePart[]): PlacementResult {
+  public validatePlacement(existingParts: CastlePart[]): EnhancedPlacementResult {
     // Level 1 parts can only be placed on ground (not on other parts)
     if (this.partLevel === 1) {
       // Check if this Level 1 part is actually on the ground
@@ -723,7 +686,15 @@ export class CastlePart extends Phaser.GameObjects.Rectangle {
       return { 
         valid: isOnGround && !isOnAnotherPart, 
         targetLevel: 0, 
-        penaltyApplied: !isOnGround || isOnAnotherPart 
+        penaltyApplied: !isOnGround || isOnAnotherPart,
+        scoreData: {
+          placementBonus: 0,
+          levelBonus: 0,
+          totalBonus: 0,
+          feedbackMessage: ''
+        },
+        isLevelSix: false,
+        shouldTriggerCastleClear: false
       };
     }
     
@@ -768,7 +739,15 @@ export class CastlePart extends Phaser.GameObjects.Rectangle {
     return {
       valid: validTarget !== undefined,
       targetLevel: validTarget?.getPartLevel() || null,
-      penaltyApplied: !validTarget
+      penaltyApplied: !validTarget,
+      scoreData: {
+        placementBonus: 0,
+        levelBonus: 0,
+        totalBonus: 0,
+        feedbackMessage: ''
+      },
+      isLevelSix: false,
+      shouldTriggerCastleClear: false
     };
   }
   
@@ -875,5 +854,197 @@ export class CastlePart extends Phaser.GameObjects.Rectangle {
     }
     
     super.destroy();
+  }
+
+  /**
+   * Enhanced placement validation with scoring calculation
+   */
+  public validatePlacementWithScoring(existingParts: CastlePart[], comboCount: number, timingBonus: number): EnhancedPlacementResult {
+    const baseResult = this.validatePlacement(existingParts);
+    
+    if (baseResult.valid) {
+      // Calculate placement bonuses
+      const placementBonus = SCORING_CONFIG.placementBonus;
+      const levelMultiplier = this.partLevel * SCORING_CONFIG.levelMultiplier;
+      const levelBonus = SCORING_CONFIG.baseScore * levelMultiplier;
+      
+      // Combo multiplier bonus
+      const comboMultiplier = Math.min(1 + (comboCount - 1) * 0.1, 3.0);
+      const comboBonus = Math.floor((placementBonus + levelBonus) * (comboMultiplier - 1));
+      
+      const totalBonus = placementBonus + levelBonus + comboBonus + timingBonus;
+      
+      // Generate feedback message
+      let feedbackMessage = `Level ${this.partLevel}!`;
+      if (comboCount > 1) {
+        feedbackMessage += `\n${comboCount}x COMBO!`;
+      }
+      if (timingBonus > 0) {
+        feedbackMessage += `\nQuick! +${timingBonus}`;
+      }
+      
+      return {
+        ...baseResult,
+        scoreData: {
+          placementBonus,
+          levelBonus,
+          totalBonus,
+          feedbackMessage
+        },
+        isLevelSix: this.partLevel === 6,
+        shouldTriggerCastleClear: this.partLevel === 6
+      };
+    } else {
+      return {
+        ...baseResult,
+        scoreData: {
+          placementBonus: 0,
+          levelBonus: 0,
+          totalBonus: 0,
+          feedbackMessage: 'Wrong Level!'
+        },
+        isLevelSix: false,
+        shouldTriggerCastleClear: false
+      };
+    }
+  }
+
+  /**
+   * Check ground collision and return penalty information
+   */
+  public checkGroundCollision(): GroundCollisionResult {
+    const isTouchingGround = this.isPartOnGround();
+    
+    // Level 1 parts are allowed on ground
+    if (this.partLevel === 1) {
+      return {
+        isTouchingGround,
+        shouldApplyPenalty: false,
+        penaltyAmount: 0,
+        penaltyMessage: ''
+      };
+    }
+    
+    // Level 2+ parts should not touch ground
+    if (isTouchingGround) {
+      return {
+        isTouchingGround: true,
+        shouldApplyPenalty: true,
+        penaltyAmount: SCORING_CONFIG.wrongPlacementPenalty,
+        penaltyMessage: 'Part touched ground!'
+      };
+    }
+    
+    return {
+      isTouchingGround: false,
+      shouldApplyPenalty: false,
+      penaltyAmount: 0,
+      penaltyMessage: ''
+    };
+  }
+
+  /**
+   * Trigger visual effects for successful placement
+   */
+  public showSuccessEffects(_bonus: number, _message: string, comboLevel: number, _isQuickPlacement: boolean): void {
+    // Create sparkles based on combo level
+    if (comboLevel >= 5) {
+      // Epic combo effects
+      this.visualEffects.createSuccessSparkles(this.x, this.y);
+      this.visualEffects.createSuccessSparkles(this.x - 30, this.y - 20);
+      this.visualEffects.createSuccessSparkles(this.x + 30, this.y - 20);
+    } else {
+      this.visualEffects.createSuccessSparkles(this.x, this.y);
+    }
+    
+    // Play appropriate sound
+    if (comboLevel >= 5) {
+      this.audioManager.playSound('place-perfect');
+    } else {
+      this.audioManager.playSound('place-good');
+    }
+  }
+
+  /**
+   * Trigger visual effects for destruction
+   */
+  public showDestructionEffects(): void {
+    this.visualEffects.createDestructionEffect(this.x, this.y, COLORS.RED);
+    this.audioManager.playSound('collapse');
+  }
+
+  /**
+   * Initialize autonomous movement for active part
+   */
+  public initializeMovement(speed: number, boundaryLeft: number, boundaryRight: number): void {
+    this.movementState = {
+      speed,
+      direction: Math.random() > 0.5 ? 1 : -1,
+      boundaryLeft,
+      boundaryRight
+    };
+  }
+
+  /**
+   * Update autonomous movement (called from scene update)
+   */
+  public updateMovement(deltaTime: number): void {
+    if (!this.movementState || this.isDropped) return;
+    
+    // Move horizontally
+    const moveDistance = this.movementState.direction * this.movementState.speed * deltaTime;
+    this.x += moveDistance;
+    
+    // Check boundaries and reverse direction
+    if (this.x <= this.movementState.boundaryLeft + this.width / 2) {
+      this.x = this.movementState.boundaryLeft + this.width / 2;
+      this.movementState.direction = 1;
+    } else if (this.x >= this.movementState.boundaryRight - this.width / 2) {
+      this.x = this.movementState.boundaryRight - this.width / 2;
+      this.movementState.direction = -1;
+    }
+    
+    // Update part data position
+    this.partData.x = this.x;
+    
+    // Update all visual elements to follow the part
+    this.updatePositions();
+  }
+
+  /**
+   * Find parts that should be cleared when this Level 6 part is placed
+   */
+  public findCastlePartsToRemove(allParts: CastlePart[]): CastlePart[] {
+    if (this.partLevel !== 6) return [];
+    
+    const partsToRemove = allParts.filter(p => {
+      const horizontallyAligned = Math.abs(p.x - this.x) < (p.width + this.width) / 2;
+      const belowOrSame = p.y >= this.y;
+      return horizontallyAligned && belowOrSame;
+    });
+    
+    // Ensure this Level 6 part itself is included
+    if (!partsToRemove.includes(this)) {
+      partsToRemove.push(this);
+    }
+    
+    return partsToRemove;
+  }
+
+  /**
+   * Create spectacular castle completion celebration
+   */
+  public createCastleCelebration(): void {
+    // Multiple sparkle effects at different positions
+    for (let i = 0; i < 5; i++) {
+      setTimeout(() => {
+        this.visualEffects.createSuccessSparkles(
+          this.x + (Math.random() - 0.5) * 100,
+          this.y - i * 20
+        );
+      }, i * 100);
+    }
+    
+    this.audioManager.playSound('level-complete');
   }
 } 

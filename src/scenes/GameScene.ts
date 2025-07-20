@@ -7,13 +7,18 @@ import { getAvailablePartLevels, getPartWidth, getPartHeight } from '@/utils/Par
 import { tSync } from '@/i18n';
 import { phaserStateManager, PhaserGameState } from '@/utils/PhaserStateManager';
 import { BaseScene } from '@/scenes/BaseScene';
+import { 
+  createResponsiveText, 
+  createCenteredResponsiveText,
+  calculateDynamicSpacing,
+  TEXT_CONFIGS 
+} from '@/utils/TextUtils';
 
 export class GameScene extends BaseScene {
   private currentPart?: CastlePart;
   private droppedParts: CastlePart[] = [];
   private gameState: GameState;
   private partSpeed: number = GAME_CONFIG.partSpeed;
-  private direction: number = 1; // 1 for right, -1 for left
   private levelText?: Phaser.GameObjects.Text;
   private scoreText?: Phaser.GameObjects.Text;
   private livesText?: Phaser.GameObjects.Text;
@@ -31,10 +36,19 @@ export class GameScene extends BaseScene {
   private totalSuccessfulPlaced: number = 0; // NEW: cumulative successful placements across game
   private rewardedCastleCount: number = 0; // NEW: total rewards triggered by level-6 clears
 
+  // Enhanced scoring system
+  private comboCount: number = 0; // Consecutive correct placements
+  private maxCombo: number = 0; // Best combo streak
+  private perfectPlacements: number = 0; // Parts placed with bonus criteria
+  private lastPlacementTime: number = 0; // For timing bonuses
+
   // UI text objects for new stats
   private totalSuccessText?: Phaser.GameObjects.Text;
   private rewardCountText?: Phaser.GameObjects.Text;
   private wrongLevelText?: Phaser.GameObjects.Text;
+  private comboText?: Phaser.GameObjects.Text;
+  private progressBar?: Phaser.GameObjects.Graphics;
+  private progressBarBg?: Phaser.GameObjects.Graphics;
 
   constructor() {
     super('GameScene');
@@ -108,6 +122,9 @@ export class GameScene extends BaseScene {
       this.groundViolations = [];
       this.gameState.isFirstPart = true;
       
+      // Reset combo for new level
+      this.comboCount = 0;
+      
       // Ensure game is active and input is enabled
       this.gameState.isGameActive = true;
       this.input.enabled = true;
@@ -130,7 +147,6 @@ export class GameScene extends BaseScene {
       this.droppedParts = [];
       this.currentPart = undefined;
       this.partSpeed = GAME_CONFIG.partSpeed;
-      this.direction = 1;
       this.groundViolations = [];
       this.totalPartsDropped = 0;
       this.overallPartsPlaced = 0;
@@ -138,6 +154,12 @@ export class GameScene extends BaseScene {
       this.wrongPartsCurrentLevel = 0;
       this.totalSuccessfulPlaced = 0;
       this.rewardedCastleCount = 0;
+      
+      // Reset enhanced scoring system
+      this.comboCount = 0;
+      this.maxCombo = 0;
+      this.perfectPlacements = 0;
+      this.lastPlacementTime = 0;
     }
   }
 
@@ -181,7 +203,6 @@ export class GameScene extends BaseScene {
     
     this.currentLevelIndex = savedState.currentLevelIndex;
     this.partSpeed = savedState.partSpeed;
-    this.direction = savedState.direction;
     
     // Restore statistics
     this.totalPartsDropped = savedState.totalPartsDropped;
@@ -190,6 +211,12 @@ export class GameScene extends BaseScene {
     this.wrongPartsCurrentLevel = savedState.wrongPartsCurrentLevel;
     this.totalSuccessfulPlaced = savedState.totalSuccessfulPlaced;
     this.rewardedCastleCount = savedState.rewardedCastleCount;
+    
+    // Restore enhanced scoring system (use defaults if not present)
+    this.comboCount = (savedState as any).comboCount || 0;
+    this.maxCombo = (savedState as any).maxCombo || 0;
+    this.perfectPlacements = (savedState as any).perfectPlacements || 0;
+    this.lastPlacementTime = (savedState as any).lastPlacementTime || 0;
     
     // Restore ground violations
     this.groundViolations = savedState.groundViolations;
@@ -270,12 +297,10 @@ export class GameScene extends BaseScene {
   }
 
   private createBackground(): void {
-    // Create simple gradient background
-    const graphics = this.add.graphics();
-    graphics.fillGradientStyle(COLORS.SKY, COLORS.SKY, COLORS.SAND_LIGHT, COLORS.SAND_LIGHT);
-    graphics.fillRect(0, 0, this.scale.width, this.scale.height);
+    // Use BaseScene helper for beautiful beach background
+    this.createBeachBackground();
 
-    // Add simple ground line
+    // Add enhanced ground with subtle texture
     const ground = this.add.rectangle(
       this.scale.width / 2,
       this.scale.height - 25,
@@ -284,72 +309,152 @@ export class GameScene extends BaseScene {
       COLORS.SAND
     );
     ground.setStrokeStyle(2, COLORS.SAND_DARK);
+    
+    // Add subtle ground texture lines
+    const groundTexture = this.add.graphics();
+    groundTexture.lineStyle(1, COLORS.SAND_DARK, 0.3);
+    for (let i = 0; i < 3; i++) {
+      const y = this.scale.height - 40 + i * 8;
+      groundTexture.moveTo(20, y);
+      groundTexture.lineTo(this.scale.width - 20, y);
+    }
+    groundTexture.strokePath();
   }
 
   private createUI(): void {
-    // Kid-friendly UI styling
-    const primaryTextStyle = {
-      fontSize: '28px',
-      color: '#2C3E50',
-      fontFamily: 'Arial, sans-serif',
-      fontStyle: 'bold',
-      stroke: '#FFFFFF',
-      strokeThickness: 2
-    };
+    // Calculate dynamic spacing for responsive layout
+    const spacing = calculateDynamicSpacing(this, 35);
+    const smallSpacing = calculateDynamicSpacing(this, 20);
+    
+    // Main game info panel - positioned at top-left with proper spacing
+    let currentY = smallSpacing;
+    
+    // Level indicator with animation - using TEXT_CONFIGS for consistency
+    const levelResult = createResponsiveText(
+      this,
+      smallSpacing,
+      currentY,
+      'Level {{level}}',
+      {
+        ...TEXT_CONFIGS.TITLE_MEDIUM,
+        maxWidth: 0.4, // 40% of screen width for HUD
+        color: '#FFFFFF',
+        stroke: '#2C3E50',
+        strokeThickness: 3
+      },
+      { level: this.gameState.currentLevel }
+    );
+    this.levelText = levelResult.text;
+    
+    // Add bounce animation for level text
+    this.visualEffects.createBounceAnimation(this.levelText, 100);
+    
+    currentY += levelResult.actualHeight + smallSpacing;
 
-    const secondaryTextStyle = {
-      fontSize: '22px',
-      color: '#2C3E50',
-      fontFamily: 'Arial, sans-serif',
-      stroke: '#FFFFFF',
-      strokeThickness: 1
-    };
+    // Score display with glow effect
+    const scoreResult = createResponsiveText(
+      this,
+      smallSpacing,
+      currentY,
+      'Score: {{score}}',
+      {
+        ...TEXT_CONFIGS.SUBTITLE_MEDIUM,
+        maxWidth: 0.4,
+        color: '#F39C12', // Gold color for score
+        stroke: '#FFFFFF',
+        strokeThickness: 2
+      },
+      { score: this.gameState.score }
+    );
+    this.scoreText = scoreResult.text;
+    
+    currentY += scoreResult.actualHeight + smallSpacing;
 
-    const statsTextStyle = {
-      fontSize: '18px',
-      color: '#7F8C8D',
-      fontFamily: 'Arial, sans-serif'
-    };
-
-    // Level indicator - larger and more prominent
-    this.levelText = this.add.text(20, 20, tSync('Level {{level}}', { level: this.gameState.currentLevel }), primaryTextStyle);
-
-    // Score display - colorful and kid-friendly
-    this.scoreText = this.add.text(20, 60, tSync('Score: {{score}}', { score: this.gameState.score }), secondaryTextStyle);
-
-    // Parts Left display (remaining parts to complete current level)
+    // Target parts display with dynamic color
     const initialLevel = LEVELS[this.currentLevelIndex];
     const initialPartsLeft = initialLevel ? initialLevel.targetParts : 0;
-
-    this.livesText = this.add.text(20, 100, tSync('Target: {{target}} parts', { target: initialPartsLeft }), {
-      ...secondaryTextStyle,
-      color: '#E67E22' // Orange color for target
-    });
-
-    // Statistics display (smaller and less prominent)
-    this.totalSuccessText = this.add.text(20, 180, `Total Installed: 0`, statsTextStyle);
-    this.rewardCountText = this.add.text(20, 210, `Castles Rewarded: 0`, statsTextStyle);
-    this.wrongLevelText = this.add.text(20, 240, `Wrong Parts: 0`, statsTextStyle);
-
-    // Instructions - subtle and encouraging
-    this.instructionText = this.add.text(
-      this.scale.width / 2,
-      this.scale.height - 100,
-      tSync('Tap to drop parts!') + '\n' + 
-      tSync('Level 1 on ground, higher levels on top') + '\n' +
-      tSync('Level 6 parts create castles for bonus!'),
+    
+    const targetResult = createResponsiveText(
+      this,
+      smallSpacing,
+      currentY,
+      'Target: {{target}} parts',
       {
-        fontSize: '16px',
-        color: '#34495E',
-        fontFamily: 'Arial, sans-serif',
-        align: 'center',
-        backgroundColor: '#F8F9FA',
-        padding: { x: 10, y: 8 },
-        stroke: '#BDC3C7',
-        strokeThickness: 1
-      }
+        ...TEXT_CONFIGS.SUBTITLE_MEDIUM,
+        maxWidth: 0.4,
+        color: '#E67E22', // Orange for target
+        stroke: '#FFFFFF',
+        strokeThickness: 2
+      },
+      { target: initialPartsLeft }
     );
-    this.instructionText.setOrigin(0.5);
+    this.livesText = targetResult.text;
+    
+    currentY += targetResult.actualHeight + spacing;
+
+    // Statistics panel - smaller and more subtle
+    const statsStartY = currentY + spacing;
+    
+    const totalSuccessResult = createResponsiveText(
+      this,
+      smallSpacing,
+      statsStartY,
+      'Total Installed: {{count}}',
+      TEXT_CONFIGS.STATS_SMALL,
+      { count: 0 }
+    );
+    this.totalSuccessText = totalSuccessResult.text;
+    
+    const rewardCountResult = createResponsiveText(
+      this,
+      smallSpacing,
+      statsStartY + totalSuccessResult.actualHeight + 5,
+      'Castles Rewarded: {{count}}',
+      TEXT_CONFIGS.STATS_SMALL,
+      { count: 0 }
+    );
+    this.rewardCountText = rewardCountResult.text;
+    
+    const wrongLevelResult = createResponsiveText(
+      this,
+      smallSpacing,
+      statsStartY + totalSuccessResult.actualHeight + rewardCountResult.actualHeight + 10,
+      'Wrong Parts: {{count}}',
+      {
+        ...TEXT_CONFIGS.STATS_SMALL,
+        color: '#E74C3C' // Red for wrong parts
+      },
+      { count: 0 }
+    );
+    this.wrongLevelText = wrongLevelResult.text;
+
+    // Combo counter - positioned on the right side below pause button to avoid conflict
+    const comboResult = createResponsiveText(
+      this,
+      this.scale.width - smallSpacing,
+      smallSpacing * 4, // Move even lower to provide enough clearance
+      'Combo: {{count}}x',
+      {
+        ...TEXT_CONFIGS.SUBTITLE_MEDIUM,
+        maxWidth: 0.3,
+        color: '#9B59B6', // Purple for combo
+        stroke: '#FFFFFF',
+        strokeThickness: 2,
+        align: 'right'
+      },
+      { count: 0 }
+    );
+    this.comboText = comboResult.text;
+    this.comboText.setOrigin(1, 0); // Right-aligned
+
+    // Instructions panel - centered at bottom with dynamic level description
+    const instructionText = this.createDynamicInstructions();
+    this.instructionText = instructionText;
+
+    // Removed static pulsing glow - now triggered dynamically on score updates
+
+    // Create level progress indicator
+    this.createProgressBar();
 
     // Add a pause button in top-right corner using BaseScene helper
     this.createPauseButton(() => {
@@ -452,15 +557,16 @@ export class GameScene extends BaseScene {
       const isGroundCollision = this.checkGroundCollision(pair.bodyA, pair.bodyB);
 
       if (bodyA instanceof CastlePart || bodyB instanceof CastlePart) {
-        // Play soft collision sound for part-to-part or part-to-ground contact
-        this.audioManager.playSound('drop');
+        const castlePart = bodyA instanceof CastlePart ? bodyA : bodyB;
+        
+        // Create sand dust effect when part lands (visual feedback)
+        if (castlePart) {
+          this.visualEffects.createSandDustEffect(castlePart.x, castlePart.y, 0.8);
+        }
 
-        // Handle ground collision if detected
-        if (isGroundCollision) {
-          const castlePart = bodyA instanceof CastlePart ? bodyA : bodyB;
-          if (castlePart) {
-            this.handleGroundCollision(castlePart);
-          }
+        // Handle ground collision if detected (includes audio feedback)
+        if (isGroundCollision && castlePart) {
+          this.handleGroundCollision(castlePart);
         }
       }
     }
@@ -553,32 +659,49 @@ export class GameScene extends BaseScene {
   }
 
   private showPenaltyFeedback(penalty: number, message: string = "Part touched ground!"): void {
-    // Create penalty text
+    // Destroy existing penalty text
     if (this.penaltyText) {
       this.penaltyText.destroy();
     }
 
-    this.penaltyText = this.add.text(
-      this.scale.width / 2,
-      this.scale.height / 2 - 50,
+    const x = this.scale.width / 2;
+    const y = this.scale.height / 2 - 50;
+
+    // Create destruction effect at penalty position
+    this.visualEffects.createDestructionEffect(x, y, COLORS.RED);
+
+    // Create enhanced penalty text with responsive design
+    this.penaltyText = createCenteredResponsiveText(
+      this,
+      x,
+      y,
       `PENALTY: -${penalty} points\n${message}`,
       {
-        fontSize: '24px',
-        color: '#E74C3C',
-        fontFamily: 'Arial',
-        align: 'center',
-        backgroundColor: '#000000',
-        padding: { x: 10, y: 5 }
+        ...TEXT_CONFIGS.SUBTITLE_MEDIUM,
+        maxWidth: 0.8,
+        color: '#E74C3C', // Red penalty color
+        stroke: '#FFFFFF',
+        strokeThickness: 3,
+        fontStyle: 'bold'
       }
     );
-    this.penaltyText.setOrigin(0.5);
 
-    // Animate penalty text
+    // Shake animation for penalty
     this.tweens.add({
       targets: this.penaltyText,
-      y: this.penaltyText.y - 30,
+      x: x + 5,
+      duration: 50,
+      yoyo: true,
+      repeat: 5,
+      ease: 'Power2.easeInOut'
+    });
+
+    // Animate penalty text with fade out
+    this.tweens.add({
+      targets: this.penaltyText,
+      y: y - 40,
       alpha: 0,
-      duration: 2000,
+      duration: 2500,
       ease: 'Power2.easeOut',
       onComplete: () => {
         if (this.penaltyText) {
@@ -610,26 +733,19 @@ export class GameScene extends BaseScene {
   }
 
   private spawnNextPart(): void {
-    if (!this.gameState.isGameActive) {
-      return;
-    }
+    if (!this.gameState.isGameActive) return;
 
     const currentLevel = LEVELS[this.currentLevelIndex] || generateLevel(this.currentLevelIndex + 1);
-    if (!currentLevel) {
-      return;
-    }
+    if (!currentLevel) return;
 
-    // Smart spawning: determine available part levels based on current castle (now via PartUtils)
+    // Smart spawning: determine available part levels based on current castle
     const availableLevels = getAvailablePartLevels(this.droppedParts);
-
-    if (availableLevels.length === 0) {
-      return;
-    }
+    if (availableLevels.length === 0) return;
 
     // Randomly select a part level from available options
     const partLevel = availableLevels[Math.floor(Math.random() * availableLevels.length)];
 
-    // Create new part at top of screen
+    // Create new part with autonomous movement
     const partWidth = getPartWidth(partLevel);
     const partHeight = getPartHeight(partLevel);
 
@@ -642,19 +758,23 @@ export class GameScene extends BaseScene {
       partLevel
     );
 
-    // Reset movement direction randomly
-    this.direction = Math.random() > 0.5 ? 1 : -1;
+    // Initialize autonomous movement
+    this.currentPart.initializeMovement(this.partSpeed, 0, this.scale.width);
   }
 
   private dropCurrentPart(): void {
     if (!this.currentPart || !this.gameState.isGameActive) return;
 
-    // Drop the current part
+    // Drop the current part with enhanced audio feedback
     this.currentPart.drop(GAME_CONFIG.gravity);
     const droppedPart = this.currentPart;
     this.droppedParts.push(droppedPart);
     this.totalPartsDropped++;
     this.overallPartsPlaced++; // NEW: increment overall parts counter
+    
+    // Play drop sound immediately for responsive feedback
+    this.audioManager.playSound('drop');
+    
     this.currentPart = undefined;
 
     // New placement validation after parts have more time to settle
@@ -731,160 +851,180 @@ export class GameScene extends BaseScene {
    */
   private validatePartPlacement(part: CastlePart): void {
     if (!part || !part.isPartDropped()) return;
-
-    // Safety check: ensure part still has valid physics body
-    if (!part.body || !part.body.position) {
-      return;
-    }
+    if (!part.body || !part.body.position) return;
 
     // Get all other parts (excluding the one being validated) that are still valid
     const otherParts = this.droppedParts.filter(p => {
-      return p !== part && p.body && p.body.position; // Only include parts with valid physics
+      return p !== part && p.body && p.body.position;
     });
 
-    // Validate placement
-    const placementResult = part.validatePlacement(otherParts);
+    // Calculate timing bonus for quick placement
+    const currentTime = Date.now();
+    let timingBonus = 0;
+    if (this.lastPlacementTime > 0) {
+      const timeDiff = currentTime - this.lastPlacementTime;
+      if (timeDiff < 3000) { // 3 seconds
+        timingBonus = Math.floor(50 * (3000 - timeDiff) / 3000);
+        this.perfectPlacements++;
+      }
+    }
+    this.lastPlacementTime = currentTime;
 
-    if (!placementResult.valid) {
-      // Wrong placement - destroy part and apply penalty
-      this.handleWrongPlacement(part, placementResult);
-    } else {
-      // Correct placement - mark as valid and give bonus
+    // Use autonomous part validation with scoring
+    const result = part.validatePlacementWithScoring(otherParts, this.comboCount, timingBonus);
+
+    if (result.valid) {
+      // Correct placement
+      this.comboCount++;
+      this.maxCombo = Math.max(this.maxCombo, this.comboCount);
+      this.gameState.score += result.scoreData.totalBonus;
+      this.totalSuccessfulPlaced++;
+      this.successfulPartsInstalled++;
+
+      // Mark as valid and show effects
       part.setPlacementValid(true);
-      this.handleCorrectPlacement(part, placementResult);
-    }
-  }
+      part.showSuccessEffects(result.scoreData.totalBonus, result.scoreData.feedbackMessage, this.comboCount, timingBonus > 0);
 
-  /**
-   * Handle wrong part placement
-   */
-  private handleWrongPlacement(part: CastlePart, _placementResult: any): void {
-    // Apply score penalty
-    this.gameState.score = Math.max(0, this.gameState.score - SCORING_CONFIG.wrongPlacementPenalty);
+      // Handle Level 6 castle clearing
+      if (result.shouldTriggerCastleClear) {
+        this.handleLevelSixPlacement(part);
+      }
+    } else {
+      // Wrong placement
+      if (this.comboCount > 0) {
+        this.showComboBreakFeedback(this.comboCount);
+        this.comboCount = 0;
+      }
 
-    // Show penalty feedback
-    this.showPenaltyFeedback(SCORING_CONFIG.wrongPlacementPenalty, "Wrong Level!");
+      this.gameState.score = Math.max(0, this.gameState.score - SCORING_CONFIG.wrongPlacementPenalty);
+      this.wrongPartsCurrentLevel++;
 
-    // Play penalty sound
-    this.audioManager.playSound('collapse');
+      // Let part handle its own destruction effects
+      part.showDestructionEffects();
 
-    // Remove part from dropped parts array
-    const partIndex = this.droppedParts.indexOf(part);
-    if (partIndex > -1) {
-      this.droppedParts.splice(partIndex, 1);
-    }
-
-    // Destroy the part with effect
-    this.destroyPartWithEffect(part);
-
-    // Update UI
-    this.updateUI();
-
-    // NEW: increment wrong parts counter for current level
-    this.wrongPartsCurrentLevel++;
-  }
-
-  /**
-   * Handle correct part placement
-   */
-  private handleCorrectPlacement(part: CastlePart, _placementResult: any): void {
-    // Give placement bonus
-    const placementBonus = SCORING_CONFIG.placementBonus;
-
-    // Give level multiplier bonus (higher levels worth more points)
-    const levelMultiplier = part.getPartLevel() * SCORING_CONFIG.levelMultiplier;
-    const levelBonus = SCORING_CONFIG.baseScore * levelMultiplier;
-
-    // Calculate total bonus
-    const totalBonus = placementBonus + levelBonus;
-    this.gameState.score += totalBonus;
-
-    // Show positive feedback
-    this.showSuccessFeedback(totalBonus, `Level ${part.getPartLevel()}!`);
-
-    // Play success sound
-    this.audioManager.playSound('place-good');
-
-    // Update counters
-    this.totalSuccessfulPlaced++;
-    this.successfulPartsInstalled++;
-
-    // NEW: special behaviour for level 6 parts
-    if (part.getPartLevel() === 6) {
-      this.handleLevelSixPlacement(part);
+      // Remove part from array and destroy
+      const partIndex = this.droppedParts.indexOf(part);
+      if (partIndex > -1) {
+        this.droppedParts.splice(partIndex, 1);
+      }
+      this.destroyPartWithEffect(part);
     }
 
-    // Update UI at end (to reflect new counters)
     this.updateUI();
   }
 
-  // NEW: remove all parts situated under a correctly placed level-6 part and award bonus points
-  private handleLevelSixPlacement(levelSixPart: CastlePart): void {
-    // Identify parts that are physically below the level-6 part and horizontally overlapping
-    const partsToRemove = this.droppedParts.filter(p => {
-      const horizontallyAligned = Math.abs(p.x - levelSixPart.x) < (p.width + levelSixPart.width) / 2;
-      const belowOrSame = p.y >= levelSixPart.y; // include same Y to capture the level-6 part itself later
-      return horizontallyAligned && belowOrSame;
+
+
+  /**
+   * Show combo break feedback
+   */
+  private showComboBreakFeedback(brokenCombo: number): void {
+    if (brokenCombo < 2) return; // Only show for combos of 2+
+
+    const comboBreakText = createCenteredResponsiveText(
+      this,
+      this.scale.width / 2,
+      this.scale.height / 2 + 100,
+      `Combo Broken! (${brokenCombo}x)`,
+      {
+        ...TEXT_CONFIGS.STATS_MEDIUM,
+        maxWidth: 0.6,
+        color: '#E74C3C',
+        stroke: '#FFFFFF',
+        strokeThickness: 2
+      }
+    );
+
+    this.tweens.add({
+      targets: comboBreakText,
+      y: comboBreakText.y - 30,
+      alpha: 0,
+      duration: 1500,
+      ease: 'Power2.easeOut',
+      onComplete: () => {
+        comboBreakText.destroy();
+      }
     });
+  }
 
-    // Ensure the level-6 part itself is included (in case numeric comparisons excluded it)
-    if (!partsToRemove.includes(levelSixPart)) {
-      partsToRemove.push(levelSixPart);
-    }
 
+
+  // Level 6 castle clearing - simplified using autonomous part methods
+  private handleLevelSixPlacement(levelSixPart: CastlePart): void {
+    // Let the part determine what to remove
+    const partsToRemove = levelSixPart.findCastlePartsToRemove(this.droppedParts);
     if (partsToRemove.length === 0) return;
 
-    // Award bonus – generous reward to celebrate clearing (includes the level-6 part itself)
+    // Let the part create its own celebration
+    levelSixPart.createCastleCelebration();
+
+    // Award bonus and update counters
     const bonusPerPart = SCORING_CONFIG.baseScore * 10;
     const bonus = bonusPerPart * partsToRemove.length;
     this.gameState.score += bonus;
-    this.showSuccessFeedback(bonus, `Level 6 Clear!`);
-
-    // Increase rewarded castle count
     this.rewardedCastleCount++;
 
-    // Remove the parts with visual effect
-    partsToRemove.forEach(p => {
-      const idx = this.droppedParts.indexOf(p);
-      if (idx > -1) {
-        this.droppedParts.splice(idx, 1);
-      }
-      this.destroyPartWithEffect(p);
+    // Show celebration feedback
+    this.showCastleCelebrationFeedback(bonus, partsToRemove.length, levelSixPart.x, levelSixPart.y);
+
+    // Remove parts after celebration delay
+    this.time.delayedCall(500, () => {
+      partsToRemove.forEach(p => {
+        const idx = this.droppedParts.indexOf(p);
+        if (idx > -1) {
+          this.droppedParts.splice(idx, 1);
+        }
+        this.destroyPartWithEffect(p);
+      });
     });
 
-    // Update UI to reflect new parts left / score
     this.updateUI();
   }
 
+
+
   /**
-   * Show success feedback to player
+   * Show enhanced celebration feedback for castle completion
    */
-  private showSuccessFeedback(bonus: number, message: string): void {
-    const successText = this.add.text(
-      this.scale.width / 2,
-      this.scale.height / 3,
-      `${message}\n+${bonus} points`,
+  private showCastleCelebrationFeedback(bonus: number, partsCount: number, castleX?: number, castleY?: number): void {
+    // Use castle position if provided, otherwise center screen (but slightly offset up for visibility)
+    const x = castleX || this.scale.width / 2;
+    const y = (castleY ? castleY - 100 : this.scale.height / 4);
+
+    // Create celebration text
+    const celebrationText = createCenteredResponsiveText(
+      this,
+      x,
+      y,
+      `🏰 CASTLE COMPLETE! 🏰\n${partsCount} parts cleared\n+${bonus} BONUS POINTS!`,
       {
-        fontSize: '20px',
-        color: '#00FF00',
-        fontStyle: 'bold',
-        align: 'center'
+        ...TEXT_CONFIGS.TITLE_MEDIUM,
+        maxWidth: 0.8,
+        color: '#FFD700', // Gold color for celebration
+        stroke: '#2C3E50',
+        strokeThickness: 4,
+        fontStyle: 'bold'
       }
     );
-    successText.setOrigin(0.5);
 
-    // Animate success text
+    // Enhanced animation with multiple stages
+    this.visualEffects.createBounceAnimation(celebrationText, 0);
+    
     this.tweens.add({
-      targets: successText,
-      y: successText.y - 30,
+      targets: celebrationText,
+      y: y - 50,
       alpha: 0,
-      duration: 1500,
-      ease: 'Power2',
+      duration: 3000,
+      ease: 'Power2.easeOut',
       onComplete: () => {
-        successText.destroy();
+        celebrationText.destroy();
       }
     });
   }
+
+
+
+
 
   private handleCastleCollapse(): void {
     this.gameState.isGameActive = false;
@@ -928,6 +1068,9 @@ export class GameScene extends BaseScene {
     this.successfulPartsInstalled = 0;
     this.wrongPartsCurrentLevel = 0;
     // totalSuccessfulPlaced and rewardedCastleCount persist across levels
+    
+    // Reset combo when restarting level
+    this.comboCount = 0;
 
     if (this.gameState.lives <= 0) {
       this.gameOver();
@@ -982,28 +1125,238 @@ export class GameScene extends BaseScene {
   }
 
   private updateUI(): void {
+    // Animate UI updates for better visual feedback
     if (this.levelText) {
       this.levelText.setText(tSync('Level {{level}}', { level: this.gameState.currentLevel }));
+      // Add subtle pulse animation for level changes
+      this.tweens.add({
+        targets: this.levelText,
+        scaleX: 1.1,
+        scaleY: 1.1,
+        duration: 150,
+        yoyo: true,
+        ease: 'Back.easeOut'
+      });
     }
-    if (this.scoreText) {
-      this.scoreText.setText(tSync('Score: {{score}}', { score: this.gameState.score }));
-    }
+    
+          if (this.scoreText) {
+        const oldText = this.scoreText.text;
+        const newText = tSync('Score: {{score}}', { score: this.gameState.score });
+        
+        if (oldText !== newText) {
+          this.scoreText.setText(newText);
+          
+          // Simple scale animation for score changes - no color tinting or glows
+          this.tweens.add({
+            targets: this.scoreText,
+            scaleX: 1.15,
+            scaleY: 1.15,
+            duration: 200,
+            yoyo: true,
+            ease: 'Back.easeOut'
+          });
+        }
+      }
+    
     if (this.livesText) {
       const currentLevel = LEVELS[this.currentLevelIndex];
       const partsLeft = currentLevel ? Math.max(0, currentLevel.targetParts - this.successfulPartsInstalled) : 0;
-      this.livesText.setText(tSync('Target: {{target}} parts', { target: partsLeft }));
+      const newText = tSync('Target: {{target}} parts', { target: partsLeft });
+      
+      if (this.livesText.text !== newText) {
+        this.livesText.setText(newText);
+        // Pulse animation for target updates
+        this.tweens.add({
+          targets: this.livesText,
+          scaleX: 1.05,
+          scaleY: 1.05,
+          duration: 100,
+          yoyo: true,
+          ease: 'Power2.easeOut'
+        });
+      }
     }
 
-    // Update stats texts
+    // Update stats texts with subtle animations
     if (this.totalSuccessText) {
-      this.totalSuccessText.setText(`Total Installed: ${this.totalSuccessfulPlaced}`);
+      const newText = tSync('Total Installed: {{count}}', { count: this.totalSuccessfulPlaced });
+      if (this.totalSuccessText.text !== newText) {
+        this.totalSuccessText.setText(newText);
+        this.animateStatUpdate(this.totalSuccessText);
+      }
     }
+    
     if (this.rewardCountText) {
-      this.rewardCountText.setText(`Castles Rewarded: ${this.rewardedCastleCount}`);
+      const newText = tSync('Castles Rewarded: {{count}}', { count: this.rewardedCastleCount });
+      if (this.rewardCountText.text !== newText) {
+        this.rewardCountText.setText(newText);
+        this.animateStatUpdate(this.rewardCountText); // Scale animation only
+      }
     }
+    
     if (this.wrongLevelText) {
-      this.wrongLevelText.setText(`Wrong Parts: ${this.wrongPartsCurrentLevel}`);
+      const newText = tSync('Wrong Parts: {{count}}', { count: this.wrongPartsCurrentLevel });
+      if (this.wrongLevelText.text !== newText) {
+        this.wrongLevelText.setText(newText);
+        this.animateStatUpdate(this.wrongLevelText); // Scale animation only
+      }
     }
+
+    // Update combo counter with dynamic styling
+    if (this.comboText) {
+      const newText = tSync('Combo: {{count}}x', { count: this.comboCount });
+      if (this.comboText.text !== newText) {
+        this.comboText.setText(newText);
+        
+        // Simple scale animation for combo updates - no color changes
+        this.animateStatUpdate(this.comboText);
+             }
+     }
+
+         // Update progress bar
+    this.updateProgressBar();
+
+    // Update instructions based on current level
+    this.updateInstructions();
+  }
+
+   /**
+   * Create level progress bar indicator
+   */
+  private createProgressBar(): void {
+    const barWidth = this.scale.width * 0.6;
+    const barHeight = 8;
+    const barX = this.scale.width / 2 - barWidth / 2;
+    const barY = calculateDynamicSpacing(this, 150); // Move much lower to avoid overlap with stats
+
+    // Background bar
+    this.progressBarBg = this.add.graphics();
+    this.progressBarBg.fillStyle(0x2C3E50, 0.8);
+    this.progressBarBg.fillRoundedRect(barX, barY, barWidth, barHeight, 4);
+    this.progressBarBg.lineStyle(2, 0xFFFFFF, 0.8);
+    this.progressBarBg.strokeRoundedRect(barX, barY, barWidth, barHeight, 4);
+
+    // Progress fill
+    this.progressBar = this.add.graphics();
+
+    // Progress label
+    createCenteredResponsiveText(
+      this,
+      this.scale.width / 2,
+      barY - 25, // Slightly more space above the bar
+      'Level Progress',
+      {
+        ...TEXT_CONFIGS.STATS_SMALL,
+        color: '#FFFFFF',
+        stroke: '#2C3E50',
+        strokeThickness: 1
+      }
+    );
+
+    this.updateProgressBar();
+  }
+
+  /**
+   * Update progress bar based on current level completion
+   */
+  private updateProgressBar(): void {
+    if (!this.progressBar || !this.progressBarBg) return;
+
+    const currentLevel = LEVELS[this.currentLevelIndex];
+    if (!currentLevel) return;
+
+    const progress = Math.min(this.successfulPartsInstalled / currentLevel.targetParts, 1);
+    const barWidth = this.scale.width * 0.6;
+    const barHeight = 8;
+    const barX = this.scale.width / 2 - barWidth / 2;
+    const barY = calculateDynamicSpacing(this, 150); // Match the positioning from createProgressBar
+
+    this.progressBar.clear();
+    
+    // Color changes based on progress
+    let fillColor: number = COLORS.RED;
+    if (progress >= 0.8) {
+      fillColor = COLORS.GREEN;
+    } else if (progress >= 0.5) {
+      fillColor = COLORS.YELLOW;
+    } else if (progress >= 0.3) {
+      fillColor = COLORS.YELLOW;
+    }
+
+    this.progressBar.fillStyle(fillColor);
+    this.progressBar.fillRoundedRect(barX, barY, barWidth * progress, barHeight, 4);
+
+    // Add glow effect for near-completion
+    if (progress >= 0.8) {
+      this.progressBar.lineStyle(2, fillColor, 0.6);
+      this.progressBar.strokeRoundedRect(barX - 2, barY - 2, barWidth * progress + 4, barHeight + 4, 6);
+    }
+  }
+
+  /**
+   * Animate stat text updates with scale pulse
+   */
+  private animateStatUpdate(textObject: Phaser.GameObjects.Text): void {
+    // Simplified animation - just scale pulse, no color tinting that might create overlay effects
+    this.tweens.add({
+      targets: textObject,
+      scaleX: 1.1,
+      scaleY: 1.1,
+      duration: 150,
+      yoyo: true,
+      ease: 'Power2.easeInOut'
+    });
+  }
+
+  /**
+   * Create dynamic instructions text based on current level
+   */
+  private createDynamicInstructions(): Phaser.GameObjects.Text {
+    const spacing = calculateDynamicSpacing(this, 35);
+    
+    // Base instruction that's always shown
+    let instructionText = tSync('Tap to drop parts!');
+    
+    // Add level description if available
+    const currentLevel = LEVELS[this.currentLevelIndex];
+    if (currentLevel && currentLevel.description) {
+      instructionText += '\n' + tSync(currentLevel.description);
+    }
+    
+    const text = createCenteredResponsiveText(
+      this,
+      this.scale.width / 2,
+      this.scale.height - spacing * 3,
+      instructionText,
+      {
+        ...TEXT_CONFIGS.STATS_MEDIUM,
+        maxWidth: 0.85,
+        color: '#34495E',
+        stroke: '#FFFFFF',
+        strokeThickness: 3,
+        align: 'center'
+      }
+    );
+    
+    return text;
+  }
+
+  /**
+   * Update instructions text when level changes
+   */
+  private updateInstructions(): void {
+    if (!this.instructionText) return;
+    
+    // Base instruction that's always shown
+    let instructionText = tSync('Tap to drop parts!');
+    
+    // Add level description if available
+    const currentLevel = LEVELS[this.currentLevelIndex];
+    if (currentLevel && currentLevel.description) {
+      instructionText += '\n' + tSync(currentLevel.description);
+    }
+    
+    this.instructionText.setText(instructionText);
   }
 
   update(_time: number, delta: number): void {
@@ -1014,18 +1367,12 @@ export class GameScene extends BaseScene {
       });
     }
 
-    // Move current part horizontally
+    // Let current part handle its own movement
     if (this.currentPart && this.currentPart.active && this.gameState.isGameActive) {
-      this.currentPart.moveHorizontally(this.direction * this.partSpeed, delta / 1000);
-
-      // Reverse direction at screen edges
-      if (this.currentPart.x <= this.currentPart.width / 2 ||
-          this.currentPart.x >= this.scale.width - this.currentPart.width / 2) {
-        this.direction *= -1;
-      }
+      this.currentPart.updateMovement(delta / 1000);
     }
 
-    // Check stability of dropped parts (ground violations now handled by collision detection)
+    // Let dropped parts handle their own stability checking
     this.droppedParts.forEach((part) => {
       if (part && part.active && part.body) {
         part.checkStability();
@@ -1034,16 +1381,10 @@ export class GameScene extends BaseScene {
   }
 
   private updateTexts(): void {
-    // Update all UI text elements when language changes
-    if (this.instructionText) {
-      this.instructionText.setText(
-        tSync('Tap to drop parts!') + '\n' + 
-        tSync('Level 1 on ground, higher levels on top') + '\n' +
-        tSync('Level 6 parts create castles for bonus!')
-      );
-    }
+    // Update dynamic instructions with level description
+    this.updateInstructions();
 
-    // Update other text elements
+    // Update other translatable text elements
     this.updateUI();
   }
 
@@ -1051,7 +1392,7 @@ export class GameScene extends BaseScene {
    * Override base class method to save game-specific state
    */
   protected saveGameState(): void {
-    const state: Omit<PhaserGameState, 'timestamp'> = {
+    const state: Omit<PhaserGameState, 'timestamp'> & any = {
       currentScene: 'GameScene',
       sceneStack: [], // Will be populated by PhaserStateManager
       activeScenes: [], // Will be populated by PhaserStateManager
@@ -1066,7 +1407,11 @@ export class GameScene extends BaseScene {
       totalSuccessfulPlaced: this.totalSuccessfulPlaced,
       rewardedCastleCount: this.rewardedCastleCount,
       partSpeed: this.partSpeed,
-      direction: this.direction
+      // Enhanced scoring system
+      comboCount: this.comboCount,
+      maxCombo: this.maxCombo,
+      perfectPlacements: this.perfectPlacements,
+      lastPlacementTime: this.lastPlacementTime
     };
 
     phaserStateManager.saveGameState(this.game, state);
@@ -1086,7 +1431,11 @@ export class GameScene extends BaseScene {
       totalSuccessfulPlaced: this.totalSuccessfulPlaced,
       rewardedCastleCount: this.rewardedCastleCount,
       partSpeed: this.partSpeed,
-      direction: this.direction,
+      // Enhanced scoring system
+      comboCount: this.comboCount,
+      maxCombo: this.maxCombo,
+      perfectPlacements: this.perfectPlacements,
+      lastPlacementTime: this.lastPlacementTime,
       // Add any other game-specific data that should survive page reload
     };
   }
@@ -1122,12 +1471,26 @@ export class GameScene extends BaseScene {
     if (data.partSpeed !== undefined) {
       this.partSpeed = data.partSpeed;
     }
-    if (data.direction !== undefined) {
-      this.direction = data.direction;
+    
+    // Restore enhanced scoring system
+    if (data.comboCount !== undefined) {
+      this.comboCount = data.comboCount;
     }
+    if (data.maxCombo !== undefined) {
+      this.maxCombo = data.maxCombo;
+    }
+    if (data.perfectPlacements !== undefined) {
+      this.perfectPlacements = data.perfectPlacements;
+    }
+    if (data.lastPlacementTime !== undefined) {
+      this.lastPlacementTime = data.lastPlacementTime;
+    }
+    
     console.log(`[GameScene] Restored game state:`, { 
       level: this.gameState.currentLevel, 
-      score: this.gameState.score 
+      score: this.gameState.score,
+      combo: this.comboCount,
+      maxCombo: this.maxCombo
     });
   }
 
