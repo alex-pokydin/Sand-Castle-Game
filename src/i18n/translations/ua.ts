@@ -42,6 +42,7 @@ export const translations: Record<string, string> = {
   "Oops! Try Again": "Ой! Спробуйте Ще Раз",
   "Castle Collapsed!": "Замок Обвалився!",
   "Wrong Level!": "Неправильний Рівень!",
+  "Level Complete": "Рівень Пройдено",
   "Level Complete!": "Рівень Пройдено!",
   "Level {{level}} Complete!": "Рівень {{level}} Пройдено!",
   "Game Over": "Гра Закінчена",

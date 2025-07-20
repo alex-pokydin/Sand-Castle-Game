@@ -327,7 +327,7 @@ export class SettingsScene extends Scene {
   }
 
   private async selectLanguage(languageCode: string): Promise<void> {
-    console.log('Selecting language:', languageCode);
+    // Selecting language
     await setLanguage(languageCode);
     this.updateLanguageButtons();
   }
@@ -367,11 +367,8 @@ export class SettingsScene extends Scene {
   }
 
   private goBack(): void {
-    this.cameras.main.fadeOut(300, 0, 0, 0);
-    
-    this.cameras.main.once('camerafadeoutcomplete', () => {
-      this.scene.start('MenuScene');
-    });
+    // Stop SettingsScene and return to MenuScene (which should be running in background)
+    this.scene.stop();
   }
 
   shutdown(): void {

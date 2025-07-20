@@ -143,6 +143,7 @@ export class ConfirmationDialog {
 
     // Make overlay and dialog interactive
     this.overlay.setInteractive();
+    this.dialog.setSize(dialogWidth, dialogHeight);
     this.dialog.setInteractive();
   }
 

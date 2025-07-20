@@ -1,6 +1,7 @@
 import { Scene } from 'phaser';
 import { supportsVibration } from '@/utils/DeviceUtils';
 import { tSync } from '@/i18n';
+import { phaserStateManager, PhaserGameState } from '@/utils/PhaserStateManager';
 import { 
   createResponsiveTitle, 
   createResponsiveSubtitle, 
@@ -29,17 +30,55 @@ export class LevelCompleteScene extends Scene {
     super({ key: 'LevelCompleteScene' });
   }
 
-  init(data: LevelCompleteData): void {
+  init(data?: LevelCompleteData & { restoreFromState?: boolean; savedState?: PhaserGameState }): void {
+    // Handle scene restoration from saved state
+    if (data?.restoreFromState && data?.savedState) {
+      // Restoring LevelCompleteScene from saved state
+      this.restoreLevelCompleteState(data.savedState);
+      return;
+    }
+    
     this.levelData = data;
   }
 
-  create(): void {
+  async preload(): Promise<void> {
+    // Initialize i18n system if not already done
+    const { initI18n } = await import('@/i18n');
+    await initI18n();
+  }
+
+  /**
+   * Restore level complete state from saved data
+   */
+  private restoreLevelCompleteState(savedState: PhaserGameState): void {
+    // Restoring level complete state
+
+    // Restore level data from saved state
+    this.levelData = {
+      level: savedState.gameState.currentLevel,
+      score: 100, // Level completion bonus
+      partsPlaced: savedState.successfulPartsInstalled,
+      perfectDrops: 0,
+      totalScore: savedState.gameState.score
+    };
+    
+    // Level complete state restored successfully
+  }
+
+  async create(): Promise<void> {
+    // Wait for i18n to be fully initialized
+    const { initI18n } = await import('@/i18n');
+    await initI18n();
+    
     this.createBackground();
     this.createLevelCompleteTitle();
     this.createStatsDisplay();
     this.createActionButtons();
     this.createCelebrationEffects();
     this.setupMobileOptimizations();
+    
+    // Enable auto-save for development persistence
+    this.enableAutoSave();
   }
 
   private createBackground(): void {
@@ -287,10 +326,10 @@ export class LevelCompleteScene extends Scene {
   }
 
   private continueToNextLevel(): void {
-    // Fade out and continue to next level
+    // Fade out and start fresh GameScene for next level
     this.cameras.main.fadeOut(300);
     this.cameras.main.once('camerafadeoutcomplete', () => {
-      // Pass the current game state to continue
+      // Start fresh GameScene with next level data
       this.scene.start('GameScene', {
         continueFromLevel: true,
         currentLevel: (this.levelData?.level || 1) + 1,
@@ -329,7 +368,56 @@ export class LevelCompleteScene extends Scene {
     // Dialog is automatically cleaned up by the component
   }
 
+  /**
+   * Enable automatic saving of level complete state
+   */
+  private enableAutoSave(): void {
+    // Save every 5 seconds using Phaser's timer
+    this.time.addEvent({
+      delay: 5000,
+      callback: () => {
+        this.saveCurrentState();
+      },
+      loop: true
+    });
+  }
+
+  /**
+   * Save current level complete state
+   */
+  private saveCurrentState(): void {
+    const state: Omit<PhaserGameState, 'timestamp'> = {
+      currentScene: 'LevelCompleteScene',
+      sceneStack: [], // Will be populated by PhaserStateManager
+      activeScenes: ['LevelCompleteScene'], // Explicitly set this scene as active
+      gameState: {
+        currentLevel: this.levelData?.level || 1,
+        score: this.levelData?.totalScore || 0,
+        lives: 3,
+        droppedParts: [],
+        isGameActive: false,
+        isFirstPart: true
+      },
+      currentLevelIndex: (this.levelData?.level || 1) - 1,
+      droppedParts: [],
+      groundViolations: [],
+      totalPartsDropped: 0,
+      overallPartsPlaced: this.levelData?.partsPlaced || 0,
+      successfulPartsInstalled: this.levelData?.partsPlaced || 0,
+      wrongPartsCurrentLevel: 0,
+      totalSuccessfulPlaced: this.levelData?.partsPlaced || 0,
+      rewardedCastleCount: 0,
+      partSpeed: 80,
+      direction: 1
+    };
+
+    phaserStateManager.saveGameState(this.game, state);
+  }
+
   shutdown(): void {
+    // Save state before shutting down
+    this.saveCurrentState();
+    
     // Clean up celebration elements
     this.celebrationElements.forEach(element => {
       if (element && element.destroy) {

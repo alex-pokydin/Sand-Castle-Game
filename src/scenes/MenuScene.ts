@@ -1,6 +1,7 @@
 import { Scene } from 'phaser';
 import { tSync, initI18n, onLanguageChange, offLanguageChange, getCurrentLanguage, setLanguage } from '@/i18n';
 import { supportsVibration } from '@/utils/DeviceUtils';
+import { phaserStateManager, PhaserGameState } from '@/utils/PhaserStateManager';
 
 export class MenuScene extends Scene {
   private titleText?: Phaser.GameObjects.Text;
@@ -25,12 +26,23 @@ export class MenuScene extends Scene {
     isPaused: boolean; 
     fromLevelComplete?: boolean;
     levelData?: { level: number; totalScore: number };
+    restoreFromState?: boolean;
+    savedState?: PhaserGameState;
   }): void {
-    console.log('MenuScene init called with data:', data);
+    // MenuScene init called
+    
+    // Handle scene restoration from saved state
+    if (data?.restoreFromState && data?.savedState) {
+      // Restoring MenuScene from saved state
+      this.restoreMenuState(data.savedState);
+    }
+    
     this.pauseData = data;
   }
 
   async preload(): Promise<void> {
+    // MenuScene preload() called
+    
     // Initialize i18n system
     await initI18n();
     
@@ -44,7 +56,23 @@ export class MenuScene extends Scene {
     onLanguageChange(this.languageChangeHandler);
   }
 
+  /**
+   * Restore menu state from saved data
+   */
+  private restoreMenuState(_savedState: PhaserGameState): void {
+    // Restoring menu state from saved state
+
+    // For now, we'll restore basic menu state
+    // In the future, we can enhance this to restore from scene stack data
+    this.isGamePaused = false;
+    this.pauseData = undefined;
+    
+    // Menu state restored successfully
+  }
+
   async create(): Promise<void> {
+    // MenuScene create() called
+    
     // Check if we're coming from a paused game or level complete scene
     this.isGamePaused = this.pauseData?.isPaused || this.pauseData?.fromLevelComplete || false;
     
@@ -69,6 +97,9 @@ export class MenuScene extends Scene {
     this.createHighScoreDisplay();
     this.createDecorativeElements();
     this.setupMobileOptimizations();
+    
+    // Enable auto-save for development persistence
+    this.enableAutoSave();
   }
 
   private createBackground(): void {
@@ -487,12 +518,11 @@ export class MenuScene extends Scene {
   }
 
   private resumeGame(): void {
-    console.log('Resume Game button clicked');
-    console.log('Attempting to resume GameScene');
+    // Resume Game button clicked
     // Resume and show the GameScene, then stop MenuScene
     this.scene.resume('GameScene');
     this.scene.get('GameScene').cameras.main.setVisible(true);
-    console.log('GameScene resumed, stopping MenuScene');
+    // GameScene resumed, stopping MenuScene
     this.scene.stop(); // Stop MenuScene after resuming GameScene
   }
 
@@ -525,15 +555,60 @@ export class MenuScene extends Scene {
   }
 
   private openSettings(): void {
-    // Transition to SettingsScene with fade effect
-    this.cameras.main.fadeOut(300, 0, 0, 0);
-    
-    this.cameras.main.once('camerafadeoutcomplete', () => {
-      this.scene.start('SettingsScene');
+    // Launch SettingsScene without stopping MenuScene (so we can return to it)
+    this.scene.launch('SettingsScene');
+  }
+
+  /**
+   * Enable automatic saving of menu state
+   */
+  private enableAutoSave(): void {
+    // Save every 5 seconds using Phaser's timer
+    this.time.addEvent({
+      delay: 5000,
+      callback: () => {
+        this.saveCurrentMenuState();
+      },
+      loop: true
     });
   }
 
+  /**
+   * Save current menu state
+   */
+  private saveCurrentMenuState(): void {
+    const state: Omit<PhaserGameState, 'timestamp'> = {
+      currentScene: 'MenuScene',
+      sceneStack: [], // Will be populated by PhaserStateManager
+      activeScenes: [], // Will be populated by PhaserStateManager
+      gameState: {
+        currentLevel: 1,
+        score: 0,
+        lives: 3,
+        droppedParts: [],
+        isGameActive: false,
+        isFirstPart: true
+      },
+      currentLevelIndex: 0,
+      droppedParts: [],
+      groundViolations: [],
+      totalPartsDropped: 0,
+      overallPartsPlaced: 0,
+      successfulPartsInstalled: 0,
+      wrongPartsCurrentLevel: 0,
+      totalSuccessfulPlaced: 0,
+      rewardedCastleCount: 0,
+      partSpeed: 80,
+      direction: 1
+    };
+
+    phaserStateManager.saveGameState(this.game, state);
+  }
+
   shutdown(): void {
+    // Save state before shutting down
+    this.saveCurrentMenuState();
+    
     // Unsubscribe language change listener
     if (this.languageChangeHandler) {
       offLanguageChange(this.languageChangeHandler);

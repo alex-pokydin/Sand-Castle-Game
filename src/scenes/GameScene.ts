@@ -7,6 +7,7 @@ import { AudioManager } from '@/utils/AudioManager';
 import { getAvailablePartLevels, getPartWidth, getPartHeight } from '@/utils/PartUtils';
 import { tSync, initI18n, onLanguageChange, offLanguageChange } from '@/i18n';
 import { supportsVibration } from '@/utils/DeviceUtils';
+import { phaserStateManager, PhaserGameState } from '@/utils/PhaserStateManager';
 
 export class GameScene extends Scene {
   private currentPart?: CastlePart;
@@ -54,9 +55,31 @@ export class GameScene extends Scene {
   }
 
   init(data?: any): void {
+    // Handle scene restoration from saved state
+    if (data?.restoreFromState) {
+      // Restoring GameScene from saved state
+      const savedState = phaserStateManager.loadGameState(this.game);
+      if (savedState) {
+        this.restoreGameState(savedState);
+        
+        // Note: With the new approach, GameScene and LevelCompleteScene are never active simultaneously
+        
+        return;
+      }
+    }
+    
+    // Try to load saved game state first (for development persistence)
+    const savedState = phaserStateManager.loadGameState(this.game);
+    
+    if (savedState && !data?.continueFromLevel) {
+              // Restoring saved game state from development persistence
+      this.restoreGameState(savedState);
+      return;
+    }
+    
     // Handle continuation from level complete scene
     if (data?.continueFromLevel) {
-      console.log('Continuing to next level - cleaning up and resetting');
+      // Starting fresh GameScene for level
       
       // Clean up existing game objects and physics bodies
       this.cleanupGameObjects();
@@ -84,7 +107,7 @@ export class GameScene extends Scene {
       this.input.enabled = true;
     } else {
       // Reset game state for new game
-      console.log('Starting new game - resetting all game state');
+      // Starting new game - resetting all game state
       
       // Clean up existing game objects and physics bodies
       this.cleanupGameObjects();
@@ -113,7 +136,7 @@ export class GameScene extends Scene {
   }
 
   async create(): Promise<void> {
-    console.log('GameScene create() called');
+    // GameScene create() called
     // Initialize i18n system
     await initI18n();
 
@@ -137,10 +160,149 @@ export class GameScene extends Scene {
     this.setupInput();
     this.setupMobileOptimizations();
     this.updateUI(); // Ensure UI reflects current game state
-    this.spawnNextPart();
+    
+    // Enable auto-save for development persistence
+    this.enableAutoSave();
+    
+    // Setup debug functions
+    this.setupDebugFunctions();
+    
+    // Recreate dropped parts if state was restored
+    if (this.gameState.droppedParts.length > 0) {
+      this.recreateDroppedParts();
+    }
+    
+    // Spawn next part (or restore existing parts if state was loaded)
+    if (this.droppedParts.length === 0) {
+      // New game - spawning first part
+      this.spawnNextPart();
+    } else {
+      // State was restored, but we still need a current part to move
+              // Game state restored, spawning new current part
+      this.spawnNextPart();
+    }
+  }
+
+  /**
+   * Restore complete game state from saved data
+   */
+  private restoreGameState(savedState: PhaserGameState): void {
+    // Restoring game state
+
+    // Restore core game state
+    this.gameState = savedState.gameState;
+    
+    // Ensure game is active when restoring (user wants to continue playing)
+    this.gameState.isGameActive = true;
+    // Set game to active for restoration
+    
+    this.currentLevelIndex = savedState.currentLevelIndex;
+    this.partSpeed = savedState.partSpeed;
+    this.direction = savedState.direction;
+    
+    // Restore statistics
+    this.totalPartsDropped = savedState.totalPartsDropped;
+    this.overallPartsPlaced = savedState.overallPartsPlaced;
+    this.successfulPartsInstalled = savedState.successfulPartsInstalled;
+    this.wrongPartsCurrentLevel = savedState.wrongPartsCurrentLevel;
+    this.totalSuccessfulPlaced = savedState.totalSuccessfulPlaced;
+    this.rewardedCastleCount = savedState.rewardedCastleCount;
+    
+    // Restore ground violations
+    this.groundViolations = savedState.groundViolations;
+
+    // Restore dropped parts (will be recreated in create method)
+    this.gameState.droppedParts = savedState.droppedParts;
+    
+    // Game state restored successfully
+  }
+
+  /**
+   * Recreate dropped parts from saved state
+   */
+  private recreateDroppedParts(): void {
+    if (this.gameState.droppedParts.length === 0) {
+      return;
+    }
+
+    // Recreating dropped parts from saved state
+    
+    this.gameState.droppedParts.forEach(partData => {
+      const part = new CastlePart(
+        this,
+        partData.x,
+        partData.y,
+        partData.width,
+        partData.height,
+        partData.level as 1 | 2 | 3 | 4 | 5 | 6
+      );
+      
+      // Set the part as dropped and add to physics
+      part.drop(PHYSICS_CONFIG.gravity);
+      
+      // Add to dropped parts array
+      this.droppedParts.push(part);
+    });
+    
+    // Recreated dropped parts
+  }
+
+  /**
+   * Enable automatic saving of game state
+   */
+  private enableAutoSave(): void {
+    // Save every 5 seconds using Phaser's timer
+    this.time.addEvent({
+      delay: 5000,
+      callback: () => {
+        this.saveCurrentState();
+      },
+      loop: true
+    });
+    
+    // Also save on important game events
+    this.events.on('partDropped', () => {
+      this.saveCurrentState();
+    });
+    
+    this.events.on('levelComplete', () => {
+      this.saveCurrentState();
+    });
+    
+    this.events.on('gameOver', () => {
+      this.saveCurrentState();
+    });
+  }
+
+  /**
+   * Save current state using Phaser's registry
+   */
+  private saveCurrentState(): void {
+    const state: Omit<PhaserGameState, 'timestamp'> = {
+      currentScene: 'GameScene',
+      sceneStack: [], // Will be populated by PhaserStateManager
+      activeScenes: [], // Will be populated by PhaserStateManager
+      gameState: { ...this.gameState },
+      currentLevelIndex: this.currentLevelIndex,
+      droppedParts: this.droppedParts.map(part => part.getPartData()),
+      groundViolations: this.groundViolations,
+      totalPartsDropped: this.totalPartsDropped,
+      overallPartsPlaced: this.overallPartsPlaced,
+      successfulPartsInstalled: this.successfulPartsInstalled,
+      wrongPartsCurrentLevel: this.wrongPartsCurrentLevel,
+      totalSuccessfulPlaced: this.totalSuccessfulPlaced,
+      rewardedCastleCount: this.rewardedCastleCount,
+      partSpeed: this.partSpeed,
+      direction: this.direction
+    };
+
+    phaserStateManager.saveGameState(this.game, state);
   }
 
   shutdown(): void {
+    // Save state before shutting down
+    this.saveCurrentState();
+    
     // Unsubscribe language change listener
     if (this.languageChangeHandler) {
       offLanguageChange(this.languageChangeHandler);
@@ -148,8 +310,25 @@ export class GameScene extends Scene {
     }
   }
 
+  /**
+   * Expose debug functions for development
+   */
+  private setupDebugFunctions(): void {
+    if (typeof window !== 'undefined') {
+      (window as any).debugPhaserState = {
+        ...(window as any).debugPhaserState,
+        save: () => {
+          this.saveCurrentState();
+        },
+        forceSave: () => {
+          this.saveCurrentState();
+        }
+      };
+    }
+  }
+
   private cleanupGameObjects(): void {
-    console.log('Cleaning up existing game objects and physics bodies');
+    // Cleaning up existing game objects and physics bodies
     
     // Clean up current part
     if (this.currentPart) {
@@ -177,7 +356,7 @@ export class GameScene extends Scene {
     // Clear any existing tweens
     this.tweens.killAll();
     
-    console.log('Game objects cleanup completed');
+    // Game objects cleanup completed
   }
 
   private createBackground(): void {
@@ -283,12 +462,12 @@ export class GameScene extends Scene {
 
     // Pause functionality
     pauseButton.on('pointerdown', () => {
-      console.log('Pause button clicked - pausing GameScene and launching MenuScene');
+      // Pause button clicked - pausing GameScene and launching MenuScene
       // Pause and hide the GameScene
       this.scene.pause();
       this.input.enabled = false; // Disable input when pausing
       this.cameras.main.setVisible(false);
-      console.log('GameScene paused, launching MenuScene with isPaused: true');
+              // GameScene paused, launching MenuScene with isPaused: true
       this.scene.launch('MenuScene', { isPaused: true }); // Pass pause context to MenuScene
     });
 
@@ -571,18 +750,31 @@ export class GameScene extends Scene {
   }
 
   private spawnNextPart(): void {
-    console.log('spawnNextPart called - gameState.isGameActive:', this.gameState.isGameActive);
-    if (!this.gameState.isGameActive) return;
+    // spawnNextPart called
+    if (!this.gameState.isGameActive) {
+              // Cannot spawn part - game is not active
+      return;
+    }
 
     const currentLevel = LEVELS[this.currentLevelIndex] || generateLevel(this.currentLevelIndex + 1);
-    console.log('spawnNextPart - currentLevel:', currentLevel, 'currentLevelIndex:', this.currentLevelIndex);
-    if (!currentLevel) return;
+    // spawnNextPart - currentLevel
+    if (!currentLevel) {
+              // Cannot spawn part - no level data
+      return;
+    }
 
     // Smart spawning: determine available part levels based on current castle (now via PartUtils)
     const availableLevels = getAvailablePartLevels(this.droppedParts);
+    // Available part levels
+
+    if (availableLevels.length === 0) {
+              // Cannot spawn part - no available part levels
+      return;
+    }
 
     // Randomly select a part level from available options
     const partLevel = availableLevels[Math.floor(Math.random() * availableLevels.length)];
+    // Selected part level
 
     // Create new part at top of screen
     const partWidth = getPartWidth(partLevel);
@@ -596,6 +788,8 @@ export class GameScene extends Scene {
       partHeight,
       partLevel
     );
+
+    // Part spawned successfully
 
     // Reset movement direction randomly
     this.direction = Math.random() > 0.5 ? 1 : -1;
@@ -949,10 +1143,12 @@ export class GameScene extends Scene {
   private showLevelCompleteScreen(): void {
     this.gameState.isGameActive = false;
 
-    // Transition to LevelCompleteScene
+    // Stop this scene and start LevelCompleteScene (cleaner approach)
     this.cameras.main.fadeOut(500, 0, 0, 0);
 
     this.cameras.main.once('camerafadeoutcomplete', () => {
+      // Stop GameScene before starting LevelCompleteScene to prevent background execution
+      this.scene.stop();
       this.scene.start('LevelCompleteScene', {
         level: this.gameState.currentLevel,
         score: 100, // Level completion bonus
@@ -1006,6 +1202,15 @@ export class GameScene extends Scene {
       if (this.currentPart.x <= this.currentPart.width / 2 ||
           this.currentPart.x >= this.scale.width - this.currentPart.width / 2) {
         this.direction *= -1;
+      }
+    } else {
+      // Debug logging for why part is not moving
+      if (!this.currentPart) {
+        // No current part to move
+      } else if (!this.currentPart.active) {
+        // Current part is not active
+      } else if (!this.gameState.isGameActive) {
+        // Game is not active
       }
     }
 
