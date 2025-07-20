@@ -4,6 +4,30 @@ import { COLORS, PHYSICS_CONFIG, getPartColor, PLACEMENT_CONFIG, SCORING_CONFIG 
 import { StabilityManager } from '@/objects/StabilityManager';
 import { AudioManager } from '@/utils/AudioManager';
 import { VisualEffects } from '@/utils/VisualEffects';
+import { IPartRenderer, createPartRenderer } from '@/objects/PartRenderers';
+
+/**
+ * CastlePart - Realistic sand castle building blocks
+ * 
+ * Features authentic sand castle textures with beach aesthetics:
+ * - Level 1: Trapezoid sand foundation blocks with white outline and compression marks
+ * - Level 2: Trapezoid hand-sculpted walls with white outline and tool marks
+ * - Level 3: Trapezoid detailed structures with white outline and carved windows
+ * - Level 4: Sand castle towers with finger battlements and arrow slits
+ * - Level 5: Trapezoidal sand castle roof with flat top for flag placement
+ * - Level 6: Victory flag with driftwood pole and royal banner (flag-only design)
+ * 
+ * Enhanced visual features:
+ * - Pure custom graphics rendering (no underlying rectangle visible)
+ * - Solid color fills with proper contrast between background and details
+ * - Consistent white outlines on all parts for clear definition and contrast
+ * - Trapezoid shapes (1-3, 5) for realistic sand castle stability and flag platform
+ * - Natural randomness and size variations for authentic hand-built sand castle appearance
+ * - Organic sand textures with grain details, roof tiles, and drip effects on top of fills
+ * - Consistent seeded randomness ensures parts look the same across game sessions
+ * - Flag-only pinnacle design for triumphant castle completion
+ * - Full rotation support with attached architectural details
+ */
 
 // Enhanced placement result with scoring information
 export interface EnhancedPlacementResult extends PlacementResult {
@@ -46,19 +70,24 @@ export class CastlePart extends Phaser.GameObjects.Rectangle {
   private matterBody?: MatterJS.BodyType;
   private levelDisplay?: Phaser.GameObjects.Text;
   private customGraphics?: Phaser.GameObjects.Graphics; // Custom graphics overlay
+  private partRenderer: IPartRenderer; // Modular sand-texture renderer
   
   // Autonomous movement state
   private movementState?: PartMovementState;
   
   constructor(scene: Scene, x: number, y: number, width: number, height: number, partLevel: PartLevel) {
-    // Create Rectangle with base color
+    // Create Rectangle with base color (will be made transparent)
     const partColor = getPartColor(partLevel);
     super(scene, x, y, width, height, partColor);
+    
+    // Make the base rectangle transparent - we only want our custom graphics to show
+    this.setFillStyle(0x000000, 0); // Transparent fill
     
     this.partLevel = partLevel;
     this.stabilityManager = new StabilityManager();
     this.audioManager = AudioManager.getInstance();
     this.visualEffects = new VisualEffects(scene);
+    this.partRenderer = createPartRenderer(partLevel);
     
     this.partData = {
       id: `part_${Date.now()}_${Math.random()}`,
@@ -92,203 +121,84 @@ export class CastlePart extends Phaser.GameObjects.Rectangle {
   }
   
   private setPartAppearance(): void {
-    // Set stroke based on level
-    const strokeColor = this.partLevel <= 2 ? COLORS.SAND_DARK : COLORS.WHITE;
-    this.setStrokeStyle(2, strokeColor);
+    // Remove any stroke from base rectangle - custom graphics handle all visuals
+    this.setStrokeStyle(0, 0x000000, 0);
   }
   
   /**
    * Create custom graphics overlay for castle part textures
+   * Graphics will follow the part's rotation and transformations
    */
   private createCustomGraphics(): void {
     if (!this.scene) return;
     
+    // Create graphics that will manually sync with the rectangle's transformations
     this.customGraphics = this.scene.add.graphics();
-    this.customGraphics.setPosition(this.x - this.width / 2, this.y - this.height / 2);
-    this.customGraphics.setDepth(this.depth + 1); // Above the rectangle
     
-    // Draw textures based on level
-    switch (this.partLevel) {
-      case 1: // Foundation block - solid rectangle with base pattern
-        this.drawFoundationTexture();
-        break;
-      case 2: // Base wall - rectangle with brick pattern
-        this.drawBrickTexture();
-        break;
-      case 3: // Upper wall - thinner rectangle with windows
-        this.drawUpperWallTexture();
-        break;
-      case 4: // Tower section - narrower with architectural details
-        this.drawTowerTexture();
-        break;
-      case 5: // Decorative element - ornate shape
-        this.drawDecorativeTexture();
-        break;
-      case 6: // Pinnacle/flag - triangular top piece
-        this.drawPinnacleTexture();
-        break;
-    }
+    // Position graphics at the rectangle's position
+    this.customGraphics.setPosition(this.x, this.y);
+    this.customGraphics.setRotation(this.rotation);
+    this.customGraphics.setScale(this.scaleX, this.scaleY);
+    
+    // Set depth to be above the rectangle
+    this.customGraphics.setDepth(this.depth + 1);
+    
+    // Use modular renderer system for sand-like textures
+    this.renderSandTextures();
   }
-  
-  private drawFoundationTexture(): void {
+
+  /**
+   * Render sand-like textures using the modular renderer system
+   */
+  private renderSandTextures(): void {
     if (!this.customGraphics) return;
     
-    // Add foundation texture lines
-    this.customGraphics.lineStyle(1, COLORS.SAND_DARK, 0.5);
-    for (let y = 5; y < this.height; y += 8) {
-      this.customGraphics.beginPath();
-      this.customGraphics.moveTo(2, y);
-      this.customGraphics.lineTo(this.width - 2, y);
-      this.customGraphics.strokePath();
-    }
+    // Clear previous graphics
+    this.customGraphics.clear();
+    
+    // Calculate offsets for center-relative drawing
+    const offsetX = -this.width / 2;
+    const offsetY = -this.height / 2;
+    
+    // Use the appropriate renderer for this part level
+    this.partRenderer.render(this.customGraphics, this.width, this.height, offsetX, offsetY);
   }
-  
-  private drawBrickTexture(): void {
-    if (!this.customGraphics) return;
-    
-    // Add brick pattern
-    this.customGraphics.lineStyle(1, COLORS.SAND_DARK, 0.7);
-    const brickHeight = 8;
-    const brickWidth = this.width / 3;
-    
-    for (let y = 0; y < this.height; y += brickHeight) {
-      const offset = (y / brickHeight) % 2 === 0 ? 0 : brickWidth / 2;
-      
-      // Horizontal line
-      this.customGraphics.beginPath();
-      this.customGraphics.moveTo(0, y);
-      this.customGraphics.lineTo(this.width, y);
-      this.customGraphics.strokePath();
-      
-      // Vertical lines
-      for (let x = offset; x < this.width; x += brickWidth) {
-        this.customGraphics.beginPath();
-        this.customGraphics.moveTo(x, y);
-        this.customGraphics.lineTo(x, Math.min(y + brickHeight, this.height));
-        this.customGraphics.strokePath();
-      }
-    }
-  }
-  
-  private drawUpperWallTexture(): void {
-    if (!this.customGraphics) return;
-    
-    // Add window
-    const windowWidth = this.width * 0.3;
-    const windowHeight = this.height * 0.4;
-    const windowX = (this.width - windowWidth) / 2;
-    const windowY = (this.height - windowHeight) / 2;
-    
-    this.customGraphics.fillStyle(COLORS.SKY, 0.8);
-    this.customGraphics.fillRect(windowX, windowY, windowWidth, windowHeight);
-    this.customGraphics.lineStyle(1, COLORS.SAND_DARK);
-    this.customGraphics.strokeRect(windowX, windowY, windowWidth, windowHeight);
-    
-    // Window cross
-    this.customGraphics.beginPath();
-    this.customGraphics.moveTo(windowX + windowWidth / 2, windowY);
-    this.customGraphics.lineTo(windowX + windowWidth / 2, windowY + windowHeight);
-    this.customGraphics.moveTo(windowX, windowY + windowHeight / 2);
-    this.customGraphics.lineTo(windowX + windowWidth, windowY + windowHeight / 2);
-    this.customGraphics.strokePath();
-  }
-  
-  private drawTowerTexture(): void {
-    if (!this.customGraphics) return;
-    
-    // Add battlements on top
-    const merlonWidth = this.width / 5;
-    const merlonHeight = this.height * 0.2;
-    
-    this.customGraphics.fillStyle(getPartColor(this.partLevel));
-    this.customGraphics.lineStyle(1, COLORS.WHITE);
-    for (let i = 0; i < 5; i += 2) {
-      const x = i * merlonWidth;
-      this.customGraphics.fillRect(x, -merlonHeight, merlonWidth, merlonHeight);
-      this.customGraphics.strokeRect(x, -merlonHeight, merlonWidth, merlonHeight);
-    }
-    
-    // Add small windows
-    const windowSize = 4;
-    const windowY = this.height * 0.3;
-    this.customGraphics.fillStyle(COLORS.SKY, 0.8);
-    this.customGraphics.fillRect((this.width - windowSize) / 2, windowY, windowSize, windowSize);
-    this.customGraphics.strokeRect((this.width - windowSize) / 2, windowY, windowSize, windowSize);
-  }
-  
-  private drawDecorativeTexture(): void {
-    if (!this.customGraphics) return;
-    
-    // Draw decorative arch
-    const archWidth = this.width * 0.8;
-    
-    this.customGraphics.lineStyle(2, COLORS.WHITE);
-    this.customGraphics.beginPath();
-    this.customGraphics.arc(this.width / 2, this.height * 0.6, archWidth / 2, Math.PI, 0, true);
-    this.customGraphics.strokePath();
-    
-    // Add decorative details
-    this.customGraphics.lineStyle(1, COLORS.WHITE);
-    for (let i = 0; i < 3; i++) {
-      const y = this.height * 0.7 + i * 3;
-      this.customGraphics.beginPath();
-      this.customGraphics.moveTo(2, y);
-      this.customGraphics.lineTo(this.width - 2, y);
-      this.customGraphics.strokePath();
-    }
-  }
-  
-  private drawPinnacleTexture(): void {
-    if (!this.customGraphics) return;
-    
-    // Draw flag pole (thin rectangle)
-    const poleWidth = this.width * 0.2;
-    const poleX = (this.width - poleWidth) / 2;
-    this.customGraphics.fillStyle(getPartColor(this.partLevel));
-    this.customGraphics.fillRect(poleX, 0, poleWidth, this.height);
-    this.customGraphics.strokeRect(poleX, 0, poleWidth, this.height);
-    
-    // Draw flag (triangle)
-    const flagWidth = this.width * 0.6;
-    const flagHeight = this.height * 0.4;
-    const flagX = poleX + poleWidth;
-    const flagY = this.height * 0.1;
-    
-    this.customGraphics.fillStyle(COLORS.RED);
-    this.customGraphics.beginPath();
-    this.customGraphics.moveTo(flagX, flagY);
-    this.customGraphics.lineTo(flagX + flagWidth, flagY + flagHeight / 2);
-    this.customGraphics.lineTo(flagX, flagY + flagHeight);
-    this.customGraphics.closePath();
-    this.customGraphics.fillPath();
-    this.customGraphics.strokePath();
+
+  private createStabilityGlow(): void {
+    // Stability glow circles removed - replaced with modern visual effects
+    // Legacy red/green circles that were confusing to players
+    this.stabilityGlow = undefined;
   }
   
   private createLevelDisplay(): void {
     if (!this.scene) return;
     
-    // Create text to display the part level - always visible and centered
+    // Create elegant level display that complements the enhanced visuals
     this.levelDisplay = this.scene.add.text(
       this.x,
       this.y,
       this.partLevel.toString(),
       {
-        fontSize: '18px',
+        fontSize: '20px',
         color: '#FFFFFF',
+        fontFamily: 'Arial Black, sans-serif',
         fontStyle: 'bold',
         stroke: '#000000',
-        strokeThickness: 3,
+        strokeThickness: 4,
         shadow: {
-          offsetX: 1,
-          offsetY: 1,
+          offsetX: 2,
+          offsetY: 2,
           color: '#000000',
-          blur: 2,
+          blur: 3,
           fill: true
         }
       }
     );
     this.levelDisplay.setOrigin(0.5, 0.5);
-    this.levelDisplay.setDepth(2000); // Ensure it's always on top
+    this.levelDisplay.setDepth(2000); // Ensure it's always on top of enhanced graphics
+    
+    // Add subtle glow effect for better visibility against complex textures
+    this.levelDisplay.setTint(0xFFFFFF);
   }
   
   private createShadow(): void {
@@ -304,29 +214,28 @@ export class CastlePart extends Phaser.GameObjects.Rectangle {
     }
   }
   
-  private createStabilityGlow(): void {
-    // Stability glow circles removed - replaced with modern visual effects
-    // Legacy red/green circles that were confusing to players
-    this.stabilityGlow = undefined;
-  }
-  
   /**
-   * Update graphics and level display position when part moves
+   * Update graphics and level display to follow part's transformations
+   * Syncs position, rotation, and scale for all visual elements
    */
   private updatePositions(): void {
     if (!this.scene || !this.active) return;
 
-    // Update custom graphics position
+    // Sync custom graphics with rectangle's full transformation
     if (this.customGraphics) {
-      this.customGraphics.setPosition(this.x - this.width / 2, this.y - this.height / 2);
+      this.customGraphics.setPosition(this.x, this.y);
+      this.customGraphics.setRotation(this.rotation);
+      this.customGraphics.setScale(this.scaleX, this.scaleY);
     }
     
-    // Update level display position
+    // Sync level display with rectangle's transformations
     if (this.levelDisplay) {
       this.levelDisplay.setPosition(this.x, this.y);
+      this.levelDisplay.setRotation(this.rotation);
+      this.levelDisplay.setScale(this.scaleX, this.scaleY);
     }
     
-    // Update shadow position (shadow stays at bottom but follows x position)
+    // Update shadow position (shadow stays at bottom but follows x position, no rotation)
     if (this.shadow) {
       this.shadow.setPosition(this.x, this.shadow.y);
     }
@@ -446,6 +355,7 @@ export class CastlePart extends Phaser.GameObjects.Rectangle {
       this.audioManager.playSound('place-good');
     } else if (currentLevel === 'unstable' && previousLevel !== 'unstable') {
       // Becoming unstable - warning sound
+      // Note: Wobble sound disabled - enhanced visual feedback is sufficient
       //this.audioManager.playSound('wobble');
     }
     
