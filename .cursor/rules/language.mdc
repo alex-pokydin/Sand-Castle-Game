@@ -1,7 +1,6 @@
 ---
 alwaysApply: true
 ---
-
 # Translation System Overview
 
 ## How It Works
@@ -14,6 +13,9 @@ The Sand Castle Game uses a **phrase-based translation system** where English ph
 2. **Automatic Translation**: Non-English languages look up translations from language files
 3. **Graceful Fallback**: Missing translations fall back to English with console warnings
 4. **Runtime Language Switching**: Languages can be changed without page reload
+5. **Helper Function Integration**: TextUtils automatically handle translations internally
+6. **Height-Aware Sizing**: Text automatically fits within both width and height constraints
+7. **Dynamic Spacing**: Spacing adjusts based on screen size and actual text dimensions
 
 ## Language Initialization Priority
 
@@ -30,7 +32,7 @@ The system follows this hierarchy when determining the initial language:
 
 ## Usage in Code
 
-### Basic Translation
+### Direct Translation (Legacy)
 ```typescript
 // Always use English phrases as keys
 tSync('Sand Castle')        // Returns "Sand Castle" (EN) or "Пісочний Замок" (UA)
@@ -43,6 +45,65 @@ tSync('Settings')           // Returns "Settings" (EN) or "Налаштуван�
 // Use {{variable}} syntax for dynamic content
 tSync('Score: {{score}}', { score: 150 })  // "Score: 150" or "Очки: 150"
 tSync('Level {{level}}', { level: 3 })     // "Level 3" or "Рівень 3"
+```
+
+### Using TextUtils Helper Functions (Preferred)
+```typescript
+// TextUtils automatically handle translations internally
+import { createResponsiveTitle, createCenteredResponsiveText, TEXT_CONFIGS } from '@/utils/TextUtils';
+
+// Create responsive title with automatic translation and height-aware sizing
+createResponsiveTitle(
+  this,
+  this.scale.width / 2,
+  this.scale.height * 0.15,
+  'Level {{level}} Complete!',  // English phrase as key
+  TEXT_CONFIGS.TITLE_MEDIUM,
+  { level: 5 }  // Variables for translation
+);
+
+// Create centered text with translation and dynamic sizing
+createCenteredResponsiveText(
+  this,
+  this.scale.width / 2,
+  statsY,
+  'Score: {{score}}',
+  TEXT_CONFIGS.STATS_LARGE,
+  { score: 150 }
+);
+```
+
+### Using ButtonUtils Helper Functions
+```typescript
+import { createKidFriendlyButton, BUTTON_CONFIGS } from '@/utils/ButtonUtils';
+
+// Buttons automatically handle translations
+createKidFriendlyButton(
+  this,
+  this.scale.width / 2,
+  buttonY,
+  'Next Level',  // English phrase as key
+  BUTTON_CONFIGS.PRIMARY,
+  () => this.continueToNextLevel()
+);
+```
+
+### Dynamic Spacing and Layout
+```typescript
+import { calculateDynamicSpacing } from '@/utils/TextUtils';
+
+// Calculate spacing that adapts to screen size
+const spacing = calculateDynamicSpacing(this, 35); // Base spacing of 35px
+
+// Position elements relative to each other
+const title = createResponsiveTitle(/* ... */);
+const subtitle = createResponsiveSubtitle(
+  this,
+  this.scale.width / 2,
+  title.y + title.height / 2 + spacing, // Position relative to title
+  'Great Job!',
+  TEXT_CONFIGS.SUBTITLE_MEDIUM
+);
 ```
 
 ## Language Management
@@ -73,6 +134,7 @@ const lang = getCurrentLanguage()  // { code: 'ua', name: 'Українська'
 export const translations: Record<string, string> = {
   "English Phrase": "Translated Phrase",
   "Score: {{score}}": "Очки: {{score}}",
+  "Level {{level}} Complete!": "Рівень {{level}} Пройдено!",
   // ... all phrases that need translation
 };
 ```
@@ -96,109 +158,65 @@ When a translation is missing, the console shows:
 
 ## Best Practices
 
-1. **Use Descriptive English Phrases**: Make keys self-documenting
-2. **Keep Keys Consistent**: Use the same phrase across the app
-3. **Test Both Languages**: Verify translations work correctly
-4. **Add Missing Translations**: Respond to console warnings
-5. **Use Variables Sparingly**: Keep dynamic content minimal
+1. **Use Helper Functions**: Prefer TextUtils and ButtonUtils over direct tSync calls
+2. **Use Descriptive English Phrases**: Make keys self-documenting
+3. **Keep Keys Consistent**: Use the same phrase across the app
+4. **Test Both Languages**: Verify translations work correctly
+5. **Add Missing Translations**: Respond to console warnings
+6. **Use Variables Sparingly**: Keep dynamic content minimal
+7. **Leverage Predefined Configs**: Use TEXT_CONFIGS and BUTTON_CONFIGS for consistency
+8. **Use Dynamic Spacing**: Always use `calculateDynamicSpacing()` for element positioning
+9. **Position Elements Relatively**: Base element positions on previous element's actual dimensions
 
-# Translation System Overview
+## TextUtils Integration
 
-## How It Works
+### Available Helper Functions
+- `createResponsiveText()`: Core responsive text creation with height-aware sizing
+- `createResponsiveTitle()`: Titles with bounce animation and height constraints
+- `createResponsiveSubtitle()`: Subtitles with sparkle animation and height constraints
+- `createCenteredResponsiveText()`: Centered text with origin set and height awareness
+- `calculateResponsiveFontSize()`: Font size calculation considering both width and height
+- `calculateDynamicSpacing()`: Screen-size-aware spacing calculation
 
-The Sand Castle Game uses a **phrase-based translation system** where English phrases serve as translation keys. This approach makes the code more readable and reduces the need for abstract key names.
+### Predefined Text Configurations
+- `TEXT_CONFIGS.TITLE_LARGE` / `TITLE_MEDIUM`: For main titles (includes maxHeight)
+- `TEXT_CONFIGS.SUBTITLE_LARGE` / `SUBTITLE_MEDIUM`: For subtitles (includes maxHeight)
+- `TEXT_CONFIGS.STATS_LARGE` / `STATS_MEDIUM` / `STATS_SMALL` / `STATS_TINY`: For statistics (includes maxHeight)
 
-### Core Principles
+### Height-Aware Sizing Features
+- **maxWidth**: Can be pixels or percentage (0-1) of screen width
+- **maxHeight**: Can be pixels or percentage (0-1) of screen height
+- **lineSpacing**: Controls spacing between text lines
+- **useAdvancedWrap**: Advanced word wrapping for better text flow
+- **Dynamic Font Sizing**: Automatically reduces font size to fit both dimensions
 
-1. **English as Source Language**: All text in the code uses English phrases directly
-2. **Automatic Translation**: Non-English languages look up translations from language files
-3. **Graceful Fallback**: Missing translations fall back to English with console warnings
-4. **Runtime Language Switching**: Languages can be changed without page reload
+### ButtonUtils Integration
+- `createKidFriendlyButton()`: Creates animated buttons with touch feedback
+- `BUTTON_CONFIGS.PRIMARY` / `SECONDARY` / `WARNING` / `SMALL`: Predefined button styles
 
-## Language Initialization Priority
+## Layout Best Practices
 
-The system follows this hierarchy when determining the initial language:
-
-1. **Saved Preference** (localStorage) - User's manual choice
-2. **System Language** - Browser's language setting
-3. **Default** - English (fallback)
-
-### System Language Detection
-
-- `uk` (Ukrainian) → `ua` (our Ukrainian code)
-- `en` (English) → `en` (our English code)
-
-## Usage in Code
-
-### Basic Translation
+### Element Positioning
 ```typescript
-// Always use English phrases as keys
-tSync('Sand Castle')        // Returns "Sand Castle" (EN) or "Пісочний Замок" (UA)
-tSync('Play Game')          // Returns "Play Game" (EN) or "Грати" (UA)
-tSync('Settings')           // Returns "Settings" (EN) or "Налаштування" (UA)
+
+// ✅ Use relative positioning
+const title = createResponsiveTitle(/* ... */);
+const subtitle = createResponsiveSubtitle(
+  this,
+  this.scale.width / 2,
+  title.y + title.height / 2 + calculateDynamicSpacing(this, 40),
+  'Great Job!',
+  TEXT_CONFIGS.SUBTITLE_MEDIUM
+);
 ```
 
-### With Variables
-```typescript
-// Use {{variable}} syntax for dynamic content
-tSync('Score: {{score}}', { score: 150 })  // "Score: 150" or "Очки: 150"
-tSync('Level {{level}}', { level: 3 })     // "Level 3" or "Рівень 3"
-```
+### Spacing Guidelines
+- **Title to Subtitle**: 40px base spacing
+- **Subtitle to Content**: 35px base spacing
+- **Content Items**: 35px base spacing
+- **Content to Buttons**: 45px base spacing
+- **Button to Button**: 90px base spacing
 
-## Language Management
 
-### User Interface
-- **Settings Scene**: Manual language selection with visual feedback
-- **Persistent Storage**: Language choice saved to localStorage
-- **Real-time Updates**: UI updates immediately when language changes
-
-### Programmatic Control
-```typescript
-// Switch languages
-await setLanguage('ua')     // Switch to Ukrainian
-await setLanguage('en')     // Switch to English
-
-// Check current language
-const lang = getCurrentLanguage()  // { code: 'ua', name: 'Українська' }
-```
-
-## Adding New Languages
-
-1. **Create Translation File**: `src/i18n/translations/[code].ts`
-2. **Register Language**: Add to I18nManager constructor
-3. **Add Language Mapping**: Update system language detection if needed
-
-### Translation File Structure
-```typescript
-export const translations: Record<string, string> = {
-  "English Phrase": "Translated Phrase",
-  "Score: {{score}}": "Очки: {{score}}",
-  // ... all phrases that need translation
-};
-```
-
-## Development Tools
-
-### Console Debug Functions
-```javascript
-// Available in browser console
-debugI18n()                    // Check current state
-checkMissingTranslations()     // Audit missing translations
-testSetLanguage('ua')          // Switch language for testing
-clearSavedLanguage()           // Reset to system detection
-```
-
-### Missing Translation Warnings
-When a translation is missing, the console shows:
-```
-[I18n] Missing translation for key "New Feature" in language "ua". Falling back to English.
-```
-
-## Best Practices
-
-1. **Use Descriptive English Phrases**: Make keys self-documenting
-2. **Keep Keys Consistent**: Use the same phrase across the app
-3. **Test Both Languages**: Verify translations work correctly
-4. **Add Missing Translations**: Respond to console warnings
 5. **Use Variables Sparingly**: Keep dynamic content minimal
 

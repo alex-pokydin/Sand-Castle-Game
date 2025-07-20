@@ -2,6 +2,7 @@ import { Game, AUTO } from 'phaser';
 import { MenuScene } from '@/scenes/MenuScene';
 import { GameScene } from '@/scenes/GameScene';
 import { GameOverScene } from '@/scenes/GameOverScene';
+import { LevelCompleteScene } from '@/scenes/LevelCompleteScene';
 import { SettingsScene } from '@/scenes/SettingsScene';
 import { GAME_CONFIG, PHYSICS_CONFIG } from '@/config/gameConfig';
 
@@ -32,7 +33,7 @@ const config: Phaser.Types.Core.GameConfig = {
       height: 1080
     }
   },
-  scene: [MenuScene, GameScene, GameOverScene, SettingsScene]
+  scene: [MenuScene, GameScene, GameOverScene, LevelCompleteScene, SettingsScene]
 };
 
 // Initialize the game

@@ -43,6 +43,7 @@ export const translations: Record<string, string> = {
   "Castle Collapsed!": "Замок Обвалився!",
   "Wrong Level!": "Неправильний Рівень!",
   "Level Complete!": "Рівень Пройдено!",
+  "Level {{level}} Complete!": "Рівень {{level}} Пройдено!",
   "Game Over": "Гра Закінчена",
 
   // Scoring
@@ -110,6 +111,10 @@ export const translations: Record<string, string> = {
   "Super Builder!": "Супер Будівельник!",
   "Fantastic!": "Фантастично!",
   "Brilliant!": "Блискуче!",
+  "Great Building!": "Чудове Будівництво!",
+  "Excellent Work!": "Відмінна Робота!",
+  "Fantastic Progress!": "Фантастичний Прогрес!",
+  "Amazing Skills!": "Дивовижні Навички!",
 
   // Stability Indicators
   "Stable": "Стабільний",
@@ -122,6 +127,10 @@ export const translations: Record<string, string> = {
   "Time: {{time}}": "Час: {{time}}",
   "Progress: {{percent}}%": "Прогрес: {{percent}}%",
   "Parts Remaining: {{count}}": "Частин Залишилося: {{count}}",
+  "Level Score: {{score}}": "Очки Рівня: {{score}}",
+  "Parts Placed: {{count}}": "Розміщено Частин: {{count}}",
+  "Perfect Drops: {{count}}": "Ідеальних Скидів: {{count}}",
+  "Total Score: {{score}}": "Загальні Очки: {{score}}",
 
   // Game Modes (for future)
   "Classic Mode": "Класичний Режим",

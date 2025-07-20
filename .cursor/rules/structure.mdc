@@ -11,36 +11,42 @@ sand-castle-game/
 ├── vite.config.ts             # Vite configuration
 ├── .eslintrc.json             # ESLint configuration
 ├── src/
-│   ├── main.ts                # Game initialization
+│   ├── main.ts                # Game initialization and scene registration
 │   ├── types/                 # TypeScript type definitions
-│   │   ├── Game.ts           # Game-specific types
-│   │   └── Physics.ts        # Physics-related types
-│   ├── i18n/                  # Internationalization
-│   │   ├── index.ts          # Translation system core
-│   │   ├── detect.ts         # Language detection
-│   │   └── translations/     # Translation files
+│   │   ├── Game.ts           # Game-specific types and interfaces
+│   │   └── Physics.ts        # Physics-related types and constants
+│   ├── i18n/                  # Internationalization system
+│   │   ├── index.ts          # Translation system core and management
+│   │   ├── detect.ts         # Language detection and mapping
+│   │   └── translations/     # Language-specific translation files
 │   │       ├── en.ts         # English locale settings (minimal)
-│   │       └── ua.ts         # Ukrainian translations
-│   ├── scenes/
-│   │   ├── MenuScene.ts      # Main menu
-│   │   ├── GameScene.ts      # Core gameplay
-│   │   └── GameOverScene.ts  # End game screen
-│   ├── objects/
-│   │   ├── CastlePart.ts     # Castle part class
-│   │   └── StabilityManager.ts # Physics stability logic
-│   ├── utils/
-│   │   ├── AudioManager.ts   # Howler.js wrapper
-│   │   ├── PartUtils.ts      # Part spawning/sizing helpers
-│   │   └── FirebaseConfig.ts # Firebase setup
-│   └── assets/
-│       ├── images/           # Castle parts, backgrounds
-│       └── sounds/           # Audio files
-├── public/
+│   │       └── ua.ts         # Ukrainian translations (complete)
+│   ├── scenes/               # Phaser game scenes
+│   │   ├── MenuScene.ts      # Main menu with navigation
+│   │   ├── GameScene.ts      # Core gameplay mechanics
+│   │   ├── GameOverScene.ts  # Game over and victory screens
+│   │   ├── LevelCompleteScene.ts # Level completion celebration
+│   │   └── SettingsScene.ts  # Settings and language selection
+│   ├── objects/              # Game object classes
+│   │   ├── CastlePart.ts     # Castle part physics and rendering
+│   │   └── StabilityManager.ts # Physics stability calculations
+│   ├── utils/                # Utility functions and helpers
+│   │   ├── AudioManager.ts   # Howler.js audio management
+│   │   ├── PartUtils.ts      # Part spawning and sizing utilities
+│   │   ├── DeviceUtils.ts    # Device detection and capabilities
+│   │   ├── TextUtils.ts      # Responsive text creation helpers
+│   │   ├── ButtonUtils.ts    # Button creation and styling helpers
+│   │   └── FirebaseConfig.ts # Firebase integration setup
+│   └── config/               # Game configuration
+│       └── gameConfig.ts     # Game settings, levels, and constants
+├── public/                   # Static assets
 │   ├── favicon.ico
-│   └── manifest.json         # PWA manifest
+│   ├── manifest.json         # PWA manifest
+│   └── assets/               # Game assets
+│       ├── castle-parts.svg  # Castle part graphics
+│       └── sounds/           # Audio files
 └── firebase.json             # Firebase configuration
 ```
-
 
 ## Naming Conventions
 - **Files**: PascalCase for classes and managers (`CastlePart.ts`, `AudioManager.ts`)
@@ -48,7 +54,6 @@ sand-castle-game/
 - **Functions**: camelCase (`function calculateStability()`)
 - **Constants**: UPPER_SNAKE_CASE (`const MAX_PARTS = 10`)
 - **Interfaces**: PascalCase with descriptive names (`interface GameState`)
-
 
 ## TypeScript Standards
 
@@ -78,36 +83,24 @@ const isMoving = (part: CastlePartData) =>
 
 ## 🎨 Asset Requirements & Guidelines
 
-### Visual Assets Needed
+### Visual Assets Structure
 ```
-assets/
+public/assets/
 ├── images/
 │   ├── parts/                 # Castle part sprites
-│   │   ├── base-block.png    # 80x40px, sand-colored
-│   │   ├── wall-block.png    # 80x60px, brick texture
-│   │   ├── tower-top.png     # 80x80px, pointed roof
-│   │   └── decoration.png    # 40x40px, flags/details
-│   ├── backgrounds/
-│   │   ├── beach-bg.jpg      # 1920x1080px, beach scene
-│   │   └── sky-gradient.png  # 1920x400px, beach sky
-│   └── ui/
-│       ├── button-play.png   # 120x60px, kid-friendly
-│       ├── button-pause.png  # 60x60px, touch-friendly
-│       └── icons/            # 32x32px icons for UI
+│   ├── backgrounds/           # Background images
+│   └── ui/                    # User interface elements
 └── sounds/
-    ├── effects/
-    │   ├── drop.wav          # Part drop sound (0.2s)
-    │   ├── place-good.wav    # Successful placement (0.3s)
-    │   ├── place-perfect.wav # Perfect placement (0.5s)
-    │   ├── wobble.wav        # Unstable warning (0.1s loop)
-    │   └── collapse.wav      # Castle collapse (1.0s)
-    └── music/
-        └── beach-ambient.mp3 # Background music (2-3min loop)
+    ├── effects/               # Sound effects
+    └── music/                 # Background music
 ```
 
 ### Asset Specifications
 - **Image Format**: PNG for sprites with transparency, JPG for backgrounds
 - **Resolution**: 2x for retina displays, optimized for mobile
+- **Color Palette**: Warm beach colors (sandy yellows, ocean blues, sunset oranges)
+- **Audio Format**: WAV for effects, MP3 for music
+- **File Size**: Individual images <50KB, audio files <100KB, total assets <1.5MB
 - **Color Palette**: Warm beach colors (sandy yellows, ocean blues, sunset oranges)
 - **Audio Format**: WAV for effects, MP3 for music
 - **File Size**: Individual images <50KB, audio files <100KB, total assets <1.5MB

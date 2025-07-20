@@ -6,3 +6,14 @@ alwaysApply: true
 **Development**: Do not use `npm run dev` to run the project, as it is already running.
 
 **Debugging**: When debugging, use the console.log() function to print messages to the console. User will be able to see the messages and provide feedback.
+
+**Code Duplication Prevention**: 
+- **HIGH PRIORITY**: Always use existing helper functions from `src/utils/` instead of duplicating code
+- **TextUtils**: Use `createResponsiveText()`, `createResponsiveTitle()`, `createCenteredResponsiveText()` for all text creation
+- **ButtonUtils**: Use `createKidFriendlyButton()` for all button creation
+- **Predefined Configs**: Use `TEXT_CONFIGS` and `BUTTON_CONFIGS` for consistent styling
+- **DRY Principle**: If you find yourself writing similar code in multiple places, create a helper function
+- **Refactor Existing Code**: When modifying scenes, replace direct text/button creation with helper functions
+**Development**: Do not use `npm run dev` to run the project, as it is already running.
+
+**Debugging**: When debugging, use the console.log() function to print messages to the console. User will be able to see the messages and provide feedback.

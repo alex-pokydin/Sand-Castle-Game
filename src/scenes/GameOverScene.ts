@@ -1,6 +1,13 @@
 import { Scene } from 'phaser';
-import { tSync } from '@/i18n';
 import { supportsVibration } from '@/utils/DeviceUtils';
+import { 
+  createResponsiveTitle, 
+  createResponsiveSubtitle, 
+  createCenteredResponsiveText, 
+  calculateDynamicSpacing,
+  TEXT_CONFIGS 
+} from '@/utils/TextUtils';
+import { createKidFriendlyButton, BUTTON_CONFIGS } from '@/utils/ButtonUtils';
 
 interface GameOverData {
   score: number;
@@ -62,41 +69,33 @@ export class GameOverScene extends Scene {
   }
 
   private createVictoryScreen(): void {
-    // Large victory title with celebration style
-    const victoryTitle = this.add.text(
-      this.scale.width / 2,
-      this.scale.height * 0.15,
-      tSync('Level Complete!'),
-      {
-        fontSize: '56px',
-        fontFamily: 'Arial, sans-serif',
-        color: '#FFFFFF',
-        stroke: '#FFD700',
-        strokeThickness: 6,
-        shadow: {
-          offsetX: 4,
-          offsetY: 4,
-          color: '#000000',
-          blur: 3,
-          fill: true
-        },
-        align: 'center'
+    // Calculate dynamic spacing based on screen size
+    const spacing = calculateDynamicSpacing(this, 40);
+    
+    // Large victory title with celebration style and responsive sizing
+    const victoryTitleConfig = {
+      ...TEXT_CONFIGS.TITLE_LARGE,
+      stroke: '#FFD700',
+      strokeThickness: 6,
+      shadow: {
+        offsetX: 4,
+        offsetY: 4,
+        color: '#000000',
+        blur: 3,
+        fill: true
       }
+    };
+    
+    const victoryTitle = createResponsiveTitle(
+      this,
+      this.scale.width / 2,
+      this.scale.height * 0.12, // Moved up slightly
+      'Level Complete!',
+      victoryTitleConfig
     );
     victoryTitle.setOrigin(0.5);
 
-    // Victory bounce animation
-    this.tweens.add({
-      targets: victoryTitle,
-      scaleX: 1.1,
-      scaleY: 1.1,
-      duration: 500,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut'
-    });
-
-    // Encouraging subtitle
+    // Encouraging subtitle with responsive sizing
     const encouragementMessages = [
       'Amazing Castle!',
       'Super Builder!',
@@ -107,55 +106,48 @@ export class GameOverScene extends Scene {
     
     const randomMessage = encouragementMessages[Math.floor(Math.random() * encouragementMessages.length)];
     
-    const subtitle = this.add.text(
+    const subtitleConfig = {
+      ...TEXT_CONFIGS.SUBTITLE_LARGE,
+      color: '#FFD700'
+    };
+    
+    const subtitle = createResponsiveSubtitle(
+      this,
       this.scale.width / 2,
-      this.scale.height * 0.25,
-      tSync(randomMessage),
-      {
-        fontSize: '32px',
-        fontFamily: 'Arial, sans-serif',
-        color: '#FFD700',
-        fontStyle: 'bold'
-      }
+      victoryTitle.y + victoryTitle.height / 2 + spacing, // Position relative to title
+      randomMessage,
+      subtitleConfig
     );
     subtitle.setOrigin(0.5);
-
-    // Sparkle animation for subtitle
-    this.tweens.add({
-      targets: subtitle,
-      alpha: 0.8,
-      duration: 1000,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut'
-    });
   }
 
   private createGameOverScreen(): void {
-    // Encouraging game over title (not harsh)
-    const gameOverTitle = this.add.text(
-      this.scale.width / 2,
-      this.scale.height * 0.15,
-      tSync('Game Over'),
-      {
-        fontSize: '48px',
-        fontFamily: 'Arial, sans-serif',
-        color: '#FFFFFF',
-        stroke: '#74B9FF',
-        strokeThickness: 4,
-        shadow: {
-          offsetX: 3,
-          offsetY: 3,
-          color: '#000000',
-          blur: 2,
-          fill: true
-        },
-        align: 'center'
+    // Calculate dynamic spacing based on screen size
+    const spacing = calculateDynamicSpacing(this, 40);
+    
+    // Encouraging game over title (not harsh) with responsive sizing
+    const gameOverTitleConfig = {
+      ...TEXT_CONFIGS.TITLE_MEDIUM,
+      stroke: '#74B9FF',
+      shadow: {
+        offsetX: 3,
+        offsetY: 3,
+        color: '#000000',
+        blur: 2,
+        fill: true
       }
+    };
+    
+    const gameOverTitle = createResponsiveTitle(
+      this,
+      this.scale.width / 2,
+      this.scale.height * 0.12, // Moved up slightly
+      'Game Over',
+      gameOverTitleConfig
     );
     gameOverTitle.setOrigin(0.5);
 
-    // Encouraging subtitle
+    // Encouraging subtitle with responsive sizing
     const encouragingMessages = [
       'Keep Going!',
       "You're Getting Better!",
@@ -165,93 +157,82 @@ export class GameOverScene extends Scene {
     
     const randomMessage = encouragingMessages[Math.floor(Math.random() * encouragingMessages.length)];
     
-    const subtitle = this.add.text(
+    const subtitleConfig = {
+      ...TEXT_CONFIGS.SUBTITLE_MEDIUM,
+      color: '#74B9FF'
+    };
+    
+    const subtitle = createResponsiveSubtitle(
+      this,
       this.scale.width / 2,
-      this.scale.height * 0.25,
-      tSync(randomMessage),
-      {
-        fontSize: '28px',
-        fontFamily: 'Arial, sans-serif',
-        color: '#74B9FF',
-        fontStyle: 'bold'
-      }
+      gameOverTitle.y + gameOverTitle.height / 2 + spacing, // Position relative to title
+      randomMessage,
+      subtitleConfig
     );
     subtitle.setOrigin(0.5);
   }
 
   private createScoreDisplay(): void {
-    const scoreY = this.scale.height * 0.4;
-    const spacing = 40;
-    
     if (!this.gameData) return;
 
+    // Calculate dynamic spacing based on screen size
+    const spacing = calculateDynamicSpacing(this, 40);
+    
+    // Start score display after subtitle with proper spacing
+    const scoreStartY = this.scale.height * 0.35; // Adjusted starting position
+
     // Main score display
-    const scoreText = this.add.text(
+    const scoreText = createCenteredResponsiveText(
+      this,
       this.scale.width / 2,
-      scoreY,
-      tSync('Score: {{score}}', { score: this.gameData.score }),
-      {
-        fontSize: '36px',
-        fontFamily: 'Arial, sans-serif',
-        color: '#2C3E50',
-        stroke: '#FFFFFF',
-        strokeThickness: 3,
-        fontStyle: 'bold'
-      }
+      scoreStartY,
+      'Score: {{score}}',
+      TEXT_CONFIGS.STATS_LARGE,
+      { score: this.gameData.score }
     );
-    scoreText.setOrigin(0.5);
 
     // Level reached
-    const levelText = this.add.text(
+    const levelText = createCenteredResponsiveText(
+      this,
       this.scale.width / 2,
-      scoreY + spacing,
-      tSync('Level {{level}}', { level: this.gameData.level }),
-      {
-        fontSize: '24px',
-        fontFamily: 'Arial, sans-serif',
-        color: '#2C3E50',
-        stroke: '#FFFFFF',
-        strokeThickness: 2
-      }
+      scoreText.y + scoreText.height / 2 + spacing,
+      'Level {{level}}',
+      TEXT_CONFIGS.STATS_SMALL,
+      { level: this.gameData.level }
     );
-    levelText.setOrigin(0.5);
+
+    let currentY = levelText.y + levelText.height / 2 + spacing;
 
     // Additional stats for victory
     if (this.gameData.isVictory) {
-      const castlesText = this.add.text(
+      const castlesText = createCenteredResponsiveText(
+        this,
         this.scale.width / 2,
-        scoreY + spacing * 2,
-        tSync('Total Castles Built: {{count}}', { count: this.gameData.castlesBuilt }),
-        {
-          fontSize: '20px',
-          fontFamily: 'Arial, sans-serif',
-          color: '#2C3E50',
-          stroke: '#FFFFFF',
-          strokeThickness: 1
-        }
+        currentY,
+        'Total Castles Built: {{count}}',
+        TEXT_CONFIGS.STATS_SMALL,
+        { count: this.gameData.castlesBuilt }
       );
-      castlesText.setOrigin(0.5);
+      
+      currentY = castlesText.y + castlesText.height / 2 + spacing;
 
       if (this.gameData.perfectDrops > 0) {
-        const perfectText = this.add.text(
+        const perfectConfig = {
+          ...TEXT_CONFIGS.STATS_TINY,
+          color: '#27AE60',
+          fontStyle: 'bold'
+        };
+        
+        createCenteredResponsiveText(
+          this,
           this.scale.width / 2,
-          scoreY + spacing * 3,
-          `Perfect Drops: ${this.gameData.perfectDrops}`,
-          {
-            fontSize: '20px',
-            fontFamily: 'Arial, sans-serif',
-            color: '#27AE60',
-            stroke: '#FFFFFF',
-            strokeThickness: 1,
-            fontStyle: 'bold'
-          }
+          currentY,
+          'Perfect Drops: {{count}}',
+          perfectConfig,
+          { count: this.gameData.perfectDrops }
         );
-        perfectText.setOrigin(0.5);
       }
     }
-
-    // Check and display high score
-    this.checkHighScore();
   }
 
   private createActionButtons(): void {
@@ -260,122 +241,39 @@ export class GameOverScene extends Scene {
 
     // Primary action button
     const primaryAction = this.gameData?.isVictory ? 'Next Level' : 'Try Again';
-    this.createKidFriendlyButton(
+    createKidFriendlyButton(
+      this,
       this.scale.width / 2,
       buttonY,
-      tSync(primaryAction),
-      0x27AE60, // Green
-      0x2ECC71,
+      primaryAction,
+      BUTTON_CONFIGS.PRIMARY,
       () => this.handlePrimaryAction()
     );
 
     // Secondary action - Menu button
-    this.createKidFriendlyButton(
+    createKidFriendlyButton(
+      this,
       this.scale.width / 2,
       buttonY + buttonSpacing,
-      tSync('Main Menu'),
-      0x3498DB, // Blue
-      0x5DADE2,
-      () => this.goToMenu(),
-      0.8 // Slightly smaller
+      'Main Menu',
+      BUTTON_CONFIGS.SECONDARY,
+      () => this.goToMenu()
     );
 
     // If game over, add restart level option
     if (!this.gameData?.isVictory) {
-      this.createKidFriendlyButton(
+      createKidFriendlyButton(
+        this,
         this.scale.width / 2,
         buttonY - buttonSpacing,
-        tSync('Restart Level'),
-        0xE67E22, // Orange
-        0xF39C12,
-        () => this.restartLevel(),
-        0.8
+        'Restart Level',
+        BUTTON_CONFIGS.WARNING,
+        () => this.restartLevel()
       );
     }
   }
 
-  private createKidFriendlyButton(
-    x: number,
-    y: number,
-    text: string,
-    primaryColor: number,
-    hoverColor: number,
-    onClick: () => void,
-    scale: number = 1
-  ): Phaser.GameObjects.Container {
-    const container = this.add.container(x, y);
 
-    // Button background with rounded corners
-    const buttonWidth = 280 * scale;
-    const buttonHeight = 70 * scale;
-    
-    const background = this.add.graphics();
-    background.fillStyle(primaryColor);
-    background.fillRoundedRect(-buttonWidth/2, -buttonHeight/2, buttonWidth, buttonHeight, 20);
-    
-    // White border for definition
-    background.lineStyle(4, 0xFFFFFF);
-    background.strokeRoundedRect(-buttonWidth/2, -buttonHeight/2, buttonWidth, buttonHeight, 20);
-
-    // Button text
-    const buttonText = this.add.text(0, 0, text, {
-      fontSize: `${28 * scale}px`,
-      fontFamily: 'Arial, sans-serif',
-      color: '#FFFFFF',
-      fontStyle: 'bold',
-      shadow: {
-        offsetX: 2,
-        offsetY: 2,
-        color: '#000000',
-        blur: 2,
-        fill: true
-      }
-    });
-    buttonText.setOrigin(0.5);
-
-    container.add([background, buttonText]);
-
-    // Interactive area with generous touch target
-    container.setSize(buttonWidth + 20, buttonHeight + 20);
-    container.setInteractive();
-
-    // Button animations
-    container.on('pointerover', () => {
-      background.clear();
-      background.fillStyle(hoverColor);
-      background.fillRoundedRect(-buttonWidth/2, -buttonHeight/2, buttonWidth, buttonHeight, 20);
-      background.lineStyle(4, 0xFFFFFF);
-      background.strokeRoundedRect(-buttonWidth/2, -buttonHeight/2, buttonWidth, buttonHeight, 20);
-      
-      container.setScale(1.05);
-    });
-
-    container.on('pointerout', () => {
-      background.clear();
-      background.fillStyle(primaryColor);
-      background.fillRoundedRect(-buttonWidth/2, -buttonHeight/2, buttonWidth, buttonHeight, 20);
-      background.lineStyle(4, 0xFFFFFF);
-      background.strokeRoundedRect(-buttonWidth/2, -buttonHeight/2, buttonWidth, buttonHeight, 20);
-      
-      container.setScale(1);
-    });
-
-    container.on('pointerdown', () => {
-      container.setScale(0.95);
-      
-      // Click animation
-      this.tweens.add({
-        targets: container,
-        scaleX: 1.1,
-        scaleY: 1.1,
-        duration: 100,
-        yoyo: true,
-        onComplete: onClick
-      });
-    });
-
-    return container;
-  }
 
   private createCelebrationEffects(): void {
     if (this.gameData?.isVictory) {
@@ -496,46 +394,7 @@ export class GameOverScene extends Scene {
     });
   }
 
-  private checkHighScore(): void {
-    if (!this.gameData) return;
 
-    try {
-      const currentHighScore = parseInt(localStorage.getItem('sand-castle-high-score') || '0');
-      
-      if (this.gameData.score > currentHighScore) {
-        localStorage.setItem('sand-castle-high-score', this.gameData.score.toString());
-        
-        // Show new high score celebration
-        const newHighScoreText = this.add.text(
-          this.scale.width / 2,
-          this.scale.height * 0.75,
-          'NEW HIGH SCORE!',
-          {
-            fontSize: '32px',
-            fontFamily: 'Arial, sans-serif',
-            color: '#FFD700',
-            stroke: '#FF6B6B',
-            strokeThickness: 3,
-            fontStyle: 'bold'
-          }
-        );
-        newHighScoreText.setOrigin(0.5);
-        
-        // Pulsing animation for new high score
-        this.tweens.add({
-          targets: newHighScoreText,
-          scaleX: 1.2,
-          scaleY: 1.2,
-          duration: 800,
-          yoyo: true,
-          repeat: -1,
-          ease: 'Sine.easeInOut'
-        });
-      }
-    } catch (error) {
-      console.warn('Failed to save high score:', error);
-    }
-  }
 
   private refreshLayout(): void {
     // Refresh layout for orientation changes
@@ -566,10 +425,14 @@ export class GameOverScene extends Scene {
 
   private handlePrimaryAction(): void {
     if (this.gameData?.isVictory) {
-      // Go to next level
+      // For victory (level 5+), go to next level
       this.cameras.main.fadeOut(300);
       this.cameras.main.once('camerafadeoutcomplete', () => {
-        this.scene.start('GameScene');
+        this.scene.start('GameScene', {
+          continueFromLevel: true,
+          currentLevel: (this.gameData?.level || 5) + 1,
+          totalScore: this.gameData?.score || 0
+        });
       });
     } else {
       // Try again (restart current level)

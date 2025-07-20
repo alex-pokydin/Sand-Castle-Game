@@ -53,6 +53,29 @@ export class GameScene extends Scene {
     };
   }
 
+  init(data?: any): void {
+    // Handle continuation from level complete scene
+    if (data?.continueFromLevel) {
+      this.gameState.currentLevel = data.currentLevel || 1;
+      this.gameState.score = data.totalScore || 0;
+      this.currentLevelIndex = this.gameState.currentLevel - 1;
+      
+      // Ensure we have the level data
+      if (this.currentLevelIndex >= LEVELS.length) {
+        const newLevelId = this.currentLevelIndex + 1;
+        const newLevel = generateLevel(newLevelId);
+        LEVELS.push(newLevel);
+      }
+      
+      // Reset level-specific counters for the new level
+      this.successfulPartsInstalled = 0;
+      this.wrongPartsCurrentLevel = 0;
+      this.totalPartsDropped = 0;
+      this.groundViolations = [];
+      this.gameState.isFirstPart = true;
+    }
+  }
+
   async create(): Promise<void> {
     // Initialize i18n system
     await initI18n();
@@ -839,98 +862,34 @@ export class GameScene extends Scene {
     this.audioManager.playLevelCompleteSound();
 
     // Award bonus for completing the level
-    this.gameState.score += 100;
+    const levelBonus = 100;
+    this.gameState.score += levelBonus;
 
     // Save high score
     this.saveHighScore();
 
-    // For higher levels (5+), show victory screen instead of continuing
-    if (this.gameState.currentLevel >= 5) {
-      this.showVictoryScreen();
-      return;
-    }
-
-    // Advance to next level index
-    this.currentLevelIndex++;
-
-    // If we have progressed beyond the predefined LEVELS array, generate and append a new level
-    if (this.currentLevelIndex >= LEVELS.length) {
-      const newLevelId = this.currentLevelIndex + 1; // Level IDs are 1-based
-      const newLevel = generateLevel(newLevelId);
-      LEVELS.push(newLevel);
-    }
-
-    // Increment the visible/current level counter
-    this.gameState.currentLevel++;
-
-    // Proceed to the next level setup
-    this.nextLevel();
+    // Show level complete scene for every level
+    this.showLevelCompleteScreen();
   }
 
-  private showVictoryScreen(): void {
+  private showLevelCompleteScreen(): void {
     this.gameState.isGameActive = false;
 
-    // Transition to GameOverScene with victory data
+    // Transition to LevelCompleteScene
     this.cameras.main.fadeOut(500, 0, 0, 0);
 
     this.cameras.main.once('camerafadeoutcomplete', () => {
-      this.scene.start('GameOverScene', {
-        score: this.gameState.score,
+      this.scene.start('LevelCompleteScene', {
         level: this.gameState.currentLevel,
-        isVictory: true,
-        castlesBuilt: this.rewardedCastleCount,
-        perfectDrops: 0 // Can be enhanced later to track perfect drops
+        score: 100, // Level completion bonus
+        partsPlaced: this.successfulPartsInstalled,
+        perfectDrops: 0, // Can be enhanced later to track perfect drops
+        totalScore: this.gameState.score
       });
     });
   }
 
-  private nextLevel(): void {
-    // Clear dropped parts
-    this.droppedParts.forEach(part => part.destroy());
-    this.droppedParts = [];
 
-    // Ensure game remains active
-    this.gameState.isGameActive = true;
-    this.gameState.isFirstPart = true; // Reset first part flag for new level
-
-    // Clear ground violations and reset counters
-    this.groundViolations = [];
-    this.totalPartsDropped = 0;
-    this.successfulPartsInstalled = 0; // reset for new level
-    this.wrongPartsCurrentLevel = 0;
-    // totalSuccessfulPlaced and rewardedCastleCount persist across levels
-
-    // Clear any existing current part
-    if (this.currentPart) {
-      this.currentPart.destroy();
-      this.currentPart = undefined;
-    }
-
-    // Increase part speed slightly
-    this.partSpeed += 10;
-
-    // Show level complete message
-    const levelCompleteText = this.add.text(
-      this.scale.width / 2,
-      this.scale.height / 2,
-      `Level ${this.gameState.currentLevel - 1} Complete!\nGet ready for Level ${this.gameState.currentLevel}`,
-      {
-        fontSize: '24px',
-        color: '#27AE60',
-        fontFamily: 'Arial',
-        align: 'center'
-      }
-    );
-    levelCompleteText.setOrigin(0.5);
-
-    // Continue to next level after delay
-    this.time.delayedCall(2000, () => {
-      levelCompleteText.destroy();
-      this.spawnNextPart();
-    });
-
-    this.updateUI();
-  }
 
   private updateUI(): void {
     if (this.levelText) {
