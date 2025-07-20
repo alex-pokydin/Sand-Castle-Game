@@ -435,7 +435,7 @@ interface GameSession {
 ### Optional Extensions: "Follow the Fun"
 - [ ] Firebase integration (leaderboards, cloud saves)
 - [ ] Achievement system
-- [ ] Social features or sharing
+- [ ] Social features - score board
 - [ ] **Milestone**: Enhanced features that emerged organically
 
 ## 🎯 Success Metrics

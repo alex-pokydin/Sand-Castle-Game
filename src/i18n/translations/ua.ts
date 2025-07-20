@@ -174,7 +174,54 @@ export const translations: Record<string, string> = {
   "Level Progress": "Прогрес Рівня",
   
   // Dynamic Level Descriptions
-  "Endless challenge - build a {{parts}}-part castle": "Безкінечний виклик - збудуйте замок з {{parts}} частин"
+  "Endless challenge - build a {{parts}}-part castle": "Безкінечний виклик - збудуйте замок з {{parts}} частин",
+
+  // Leaderboards and Social Features
+  "Leaderboards": "Таблиці Лідерів",
+  "Global": "Глобальна",
+  "Weekly": "Тижнева",
+  "Monthly": "Місячна", 
+  "Friends": "Друзі",
+  "Rank": "Місце",
+  "Player": "Гравець",
+  "Loading leaderboard...": "Завантаження таблиці лідерів...",
+  "Failed to load leaderboard. Please check your connection.": "Не вдалося завантажити таблицю лідерів. Перевірте з'єднання.",
+  "No leaderboard data available.": "Дані таблиці лідерів недоступні.",
+  "Retry": "Повторити",
+  "Refresh": "Оновити",
+  "Your rank: {{rank}} of {{total}}": "Ваше місце: {{rank}} з {{total}}",
+  "Total players: {{total}}": "Всього гравців: {{total}}",
+
+  // Achievements
+  "Achievements": "Досягнення",
+  "Achievement Unlocked!": "Досягнення Розблоковано!",
+  "First Castle": "Перший Замок",
+  "Build your first castle by completing any level": "Збудуйте свій перший замок, завершивши будь-який рівень",
+  "Castle Builder": "Будівельник Замків",
+  "Build 10 castles": "Збудуйте 10 замків",
+  "Build 50 castles": "Збудуйте 50 замків",
+  "Perfect Drop": "Ідеальний Скид",
+  "Make your first perfect placement": "Зробіть своє перше ідеальне розміщення",
+  "Sharpshooter": "Снайпер",
+  "Make 25 perfect placements": "Зробіть 25 ідеальних розміщень",
+  "Foundation Master": "Майстер Фундаменту",
+  "Complete all 5 basic levels": "Завершіть всі 5 базових рівнів",
+  "High Scorer": "Рекордсмен",
+  "Score 1000 points in a single game": "Наберіть 1000 очок за одну гру",
+  "Score Legend": "Легенда Очок",
+  "Score 5000 points in a single game": "Наберіть 5000 очок за одну гру",
+
+  // Sharing
+  "Share Score": "Поділитися Результатом",
+  "Share Achievement": "Поділитися Досягненням",
+  "Share Castle": "Поділитися Замком",
+  "Check out my Sand Castle score!": "Подивіться на мої очки в Пісочному Замку!",
+  "I unlocked an achievement in Sand Castle!": "Я розблокував досягнення в Пісочному Замку!",
+  "Look at my amazing Sand Castle!": "Подивіться на мій дивовижний Пісочний Замок!",
+  "I scored {{score}} points on level {{level}} in Sand Castle! 🏰": "Я набрав {{score}} очок на рівні {{level}} в Пісочному Замку! 🏰",
+  "I unlocked \"{{name}}\" {{emoji}} in Sand Castle! {{description}}": "Я розблокував \"{{name}}\" {{emoji}} в Пісочному Замку! {{description}}",
+  "Check out my {{parts}}-part castle! Score: {{score}} 🏰": "Подивіться на мій замок з {{parts}} частин! Очки: {{score}} 🏰",
+  "Built an amazing {{parts}}-part castle! 🏰": "Збудував дивовижний замок з {{parts}} частин! 🏰"
 };
 
 export default translations; 

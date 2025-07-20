@@ -204,7 +204,18 @@ export class MenuScene extends BaseScene {
         0.8 // Slightly smaller
       );
 
-      this.setupButtonSounds([this.playButton, this.settingsButton]);
+      // Leaderboard Button - Smaller
+      const leaderboardButton = this.createKidFriendlyButton(
+        this.scale.width / 2,
+        buttonY + buttonSpacing * 2,
+        tSync('Leaderboards'),
+        0x9B59B6, // Purple
+        0xAB6FB8,
+        () => this.openLeaderboard(),
+        0.7 // Smaller
+      );
+
+      this.setupButtonSounds([this.playButton, this.settingsButton, leaderboardButton]);
     }
   }
 
@@ -435,6 +446,11 @@ export class MenuScene extends BaseScene {
   private openSettings(): void {
     // Use standardized navigation helper from BaseScene
     this.goToSettings();
+  }
+
+  private openLeaderboard(): void {
+    // Navigate to leaderboard scene
+    this.transitionToScene('LeaderboardScene');
   }
 
   /**
