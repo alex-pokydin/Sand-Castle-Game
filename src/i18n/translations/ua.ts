@@ -56,6 +56,7 @@ export const translations: Record<string, string> = {
   "Penalty": "Штраф",
   "points": "очки",
   "Part touched ground!": "Частина торкнулася землі!",
+  "All part levels at capacity!\nPlace parts strategically to continue.": "Всі рівні частин на повній потужності!\nРозміщуйте частини стратегічно, щоб продовжити.",
   "🏰 CASTLE COMPLETE! 🏰\n{{parts}} parts cleared\n+{{bonus}} BONUS POINTS!": "🏰 ЗАМОК ЗАВЕРШЕНО! 🏰\n{{parts}} частин очищено\n+{{bonus}} БОНУСНИХ ОЧКІВ!",
 
   // Castle Part Levels

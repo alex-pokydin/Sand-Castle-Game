@@ -1,9 +1,9 @@
 import { CastlePart } from '@/objects/CastlePart';
 import { GAME_CONFIG, LEVELS, COLORS, PHYSICS_CONFIG, SCORING_CONFIG, generateLevel } from '@/config/gameConfig';
-import { GameState, GroundViolation } from '@/types/Game';
+import { GameState, GroundViolation, PartLevel } from '@/types/Game';
 import { StabilityManager } from '@/objects/StabilityManager';
 import { VisualEffects } from '@/utils/VisualEffects';
-import { getAvailablePartLevels, getPartWidth, getPartHeight } from '@/utils/PartUtils';
+import { getAvailablePartLevels, getPartWidth, getPartHeight, PART_LEVEL_CAPACITIES, getPartCountsByLevel } from '@/utils/PartUtils';
 import { tSync } from '@/i18n';
 import { phaserStateManager, PhaserGameState } from '@/utils/PhaserStateManager';
 import { BaseScene } from '@/scenes/BaseScene';
@@ -290,6 +290,52 @@ export class GameScene extends BaseScene {
         },
         forceSave: () => {
           this.saveCurrentState();
+        }
+      };
+
+      // Add capacity debugging functions
+      (window as any).debugCapacity = {
+        showCapacity: () => {
+          const partCounts = getPartCountsByLevel(this.droppedParts);
+          const availableLevels = getAvailablePartLevels(this.droppedParts);
+          
+          console.log('=== PART CAPACITY STATUS ===');
+          console.log('Current counts by level:', partCounts);
+          console.log('Maximum capacities:', PART_LEVEL_CAPACITIES);
+          console.log('Available levels to spawn:', availableLevels);
+          
+          // Show which levels are at capacity
+          const atCapacity: number[] = [];
+          for (let level = 1; level <= 6; level++) {
+            const partLevel = level as PartLevel;
+            if (partCounts[partLevel] >= PART_LEVEL_CAPACITIES[partLevel]) {
+              atCapacity.push(level);
+            }
+          }
+          console.log('Levels at capacity:', atCapacity);
+          
+          // Show capacity percentages
+          const percentages: Record<number, string> = {};
+          for (let level = 1; level <= 6; level++) {
+            const partLevel = level as PartLevel;
+            const percentage = Math.round((partCounts[partLevel] / PART_LEVEL_CAPACITIES[partLevel]) * 100);
+            percentages[level] = `${percentage}%`;
+          }
+          console.log('Capacity utilization:', percentages);
+        },
+        resetParts: () => {
+          // Clean up all dropped parts for testing
+          this.droppedParts.forEach(part => {
+            if (part && part.active) {
+              part.destroy();
+            }
+          });
+          this.droppedParts = [];
+          this.successfulPartsInstalled = 0;
+          this.wrongPartsCurrentLevel = 0;
+          this.totalPartsDropped = 0;
+          this.updateUI();
+          console.log('All parts reset for testing');
         }
       };
     }
@@ -778,10 +824,13 @@ export class GameScene extends BaseScene {
       return;
     }
 
-    // Smart spawning: determine available part levels based on current castle
+    // Smart spawning: determine available part levels based on current castle and capacity limits
     const availableLevels = getAvailablePartLevels(this.droppedParts);
     
     if (availableLevels.length === 0) {
+      // No parts can be spawned due to capacity limits
+      console.log('No parts available to spawn - all levels at capacity');
+      this.showCapacityLimitFeedback();
       return;
     }
 
@@ -1062,6 +1111,48 @@ export class GameScene extends BaseScene {
       ease: 'Power2.easeOut',
       onComplete: () => {
         celebrationText.destroy();
+      }
+    });
+  }
+
+  /**
+   * Show feedback when all part levels are at capacity
+   */
+  private showCapacityLimitFeedback(): void {
+    const feedbackText = createCenteredResponsiveTextFromTranslated(
+      this,
+      this.scale.width / 2,
+      this.scale.height / 2 - 80,
+      tSync('All part levels at capacity!\nPlace parts strategically to continue.'),
+      {
+        ...TEXT_CONFIGS.SUBTITLE_MEDIUM,
+        maxWidth: 0.8,
+        color: '#F39C12', // Orange warning color
+        stroke: '#FFFFFF',
+        strokeThickness: 2,
+        fontStyle: 'bold'
+      }
+    );
+
+    // Gentle bounce animation for attention
+    this.tweens.add({
+      targets: feedbackText,
+      scaleX: 1.1,
+      scaleY: 1.1,
+      duration: 300,
+      yoyo: true,
+      ease: 'Power2.easeInOut'
+    });
+
+    // Fade out after showing the message
+    this.tweens.add({
+      targets: feedbackText,
+      alpha: 0,
+      duration: 3000,
+      delay: 1000,
+      ease: 'Power2.easeOut',
+      onComplete: () => {
+        feedbackText.destroy();
       }
     });
   }
