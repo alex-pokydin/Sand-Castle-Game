@@ -354,6 +354,12 @@ export class CastlePart extends Phaser.GameObjects.Rectangle {
   
   public drop(_gravity: number): void {
     if (!this.isDropped) {
+      // Safety check: ensure scene and matter physics are available
+      if (!this.scene || !this.scene.matter) {
+        console.warn('CastlePart.drop(): Scene or matter physics not available, skipping drop');
+        return;
+      }
+      
       this.isDropped = true;
       
       // Play drop sound
@@ -379,7 +385,7 @@ export class CastlePart extends Phaser.GameObjects.Rectangle {
       // Store Matter.js body reference
       this.matterBody = this.body as MatterJS.BodyType;
       
-      if (this.matterBody) {
+      if (this.matterBody && this.scene && this.scene.matter) {
         // Enhanced sand-like physics properties
         this.scene.matter.body.set(this.matterBody, 'angularDamping', PHYSICS_CONFIG.sand.angularDamping);
         this.scene.matter.body.set(this.matterBody, 'sleepThreshold', PHYSICS_CONFIG.sand.sleepThreshold);
@@ -401,7 +407,7 @@ export class CastlePart extends Phaser.GameObjects.Rectangle {
   }
   
   public checkStability(): boolean {
-    if (!this.isDropped || !this.matterBody) return true;
+    if (!this.isDropped || !this.matterBody || !this.scene) return true;
     
     // Get current velocity from Matter.js body
     const velocity = this.matterBody.velocity;
@@ -586,7 +592,7 @@ export class CastlePart extends Phaser.GameObjects.Rectangle {
    * Enhance friction between sand parts to prevent sliding
    */
   private enhanceSandToSandContact(otherBody: MatterJS.BodyType): void {
-    if (!this.matterBody) return;
+    if (!this.matterBody || !this.scene || !this.scene.matter) return;
     
     // Check if bodies are in contact
     const bodyA = this.matterBody;

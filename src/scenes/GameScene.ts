@@ -21,7 +21,7 @@ export class GameScene extends BaseScene {
   private partSpeed: number = GAME_CONFIG.partSpeed;
   private levelText?: Phaser.GameObjects.Text;
   private scoreText?: Phaser.GameObjects.Text;
-  private livesText?: Phaser.GameObjects.Text;
+  private targetText?: Phaser.GameObjects.Text; // Displays target parts remaining
   private instructionText?: Phaser.GameObjects.Text;
   private penaltyText?: Phaser.GameObjects.Text;
   private currentLevelIndex: number = 0;
@@ -41,6 +41,9 @@ export class GameScene extends BaseScene {
   private maxCombo: number = 0; // Best combo streak
   private perfectPlacements: number = 0; // Parts placed with bonus criteria
   private lastPlacementTime: number = 0; // For timing bonuses
+
+  // Level completion state
+  private isLevelCompleting: boolean = false; // Prevent spawning new parts during level completion
 
   // UI text objects for new stats
   private totalSuccessText?: Phaser.GameObjects.Text;
@@ -125,6 +128,9 @@ export class GameScene extends BaseScene {
       // Reset combo for new level
       this.comboCount = 0;
       
+      // Reset level completion state
+      this.isLevelCompleting = false;
+      
       // Ensure game is active and input is enabled
       this.gameState.isGameActive = true;
       this.input.enabled = true;
@@ -160,6 +166,9 @@ export class GameScene extends BaseScene {
       this.maxCombo = 0;
       this.perfectPlacements = 0;
       this.lastPlacementTime = 0;
+      
+      // Reset level completion state
+      this.isLevelCompleting = false;
     }
   }
 
@@ -270,7 +279,7 @@ export class GameScene extends BaseScene {
 
   private cleanupGameObjects(): void {
     // Clean up current part
-    if (this.currentPart) {
+    if (this.currentPart && this.currentPart.active) {
       this.currentPart.destroy();
       this.currentPart = undefined;
     }
@@ -349,7 +358,7 @@ export class GameScene extends BaseScene {
     // Add bounce animation for level text
     this.visualEffects.createBounceAnimation(this.levelText, 100);
     
-    currentY += levelResult.actualHeight + smallSpacing;
+    currentY += levelResult.actualHeight + smallSpacing * 2;
 
     // Score display with glow effect
     const scoreResult = createResponsiveText(
@@ -368,10 +377,10 @@ export class GameScene extends BaseScene {
     );
     this.scoreText = scoreResult.text;
     
-    currentY += scoreResult.actualHeight + smallSpacing;
+    currentY += scoreResult.actualHeight + smallSpacing / 2;
 
-    // Target parts display with dynamic color
-    const initialLevel = LEVELS[this.currentLevelIndex];
+    // Target parts remaining display
+    const initialLevel = LEVELS[this.currentLevelIndex] || generateLevel(this.currentLevelIndex + 1);
     const initialPartsLeft = initialLevel ? initialLevel.targetParts : 0;
     
     const targetResult = createResponsiveText(
@@ -380,20 +389,20 @@ export class GameScene extends BaseScene {
       currentY,
       'Target: {{target}} parts',
       {
-        ...TEXT_CONFIGS.SUBTITLE_MEDIUM,
-        maxWidth: 0.4,
+        ...TEXT_CONFIGS.STATS_SMALL,
+        maxWidth: 0.5,
         color: '#E67E22', // Orange for target
         stroke: '#FFFFFF',
         strokeThickness: 2
       },
       { target: initialPartsLeft }
     );
-    this.livesText = targetResult.text;
+    this.targetText = targetResult.text;
     
     currentY += targetResult.actualHeight + spacing;
 
     // Statistics panel - smaller and more subtle
-    const statsStartY = currentY + spacing;
+    const statsStartY = currentY;
     
     const totalSuccessResult = createResponsiveText(
       this,
@@ -432,11 +441,11 @@ export class GameScene extends BaseScene {
     const comboResult = createResponsiveText(
       this,
       this.scale.width - smallSpacing,
-      smallSpacing * 4, // Move even lower to provide enough clearance
+      smallSpacing * 5, // Move even lower to provide enough clearance
       'Combo: {{count}}x',
       {
         ...TEXT_CONFIGS.SUBTITLE_MEDIUM,
-        maxWidth: 0.3,
+        maxWidth: 0.4,
         color: '#9B59B6', // Purple for combo
         stroke: '#FFFFFF',
         strokeThickness: 2,
@@ -609,6 +618,9 @@ export class GameScene extends BaseScene {
   }
 
   private handleGroundContact(part: CastlePart): void {
+    // Safety check: ensure part still exists and is valid
+    if (!part || !part.active) return;
+    
     // Check if this part has already been penalized to avoid multiple penalties
     const partId = part.getPartData().id;
     const alreadyPenalized = this.groundViolations.some(violation => violation.partId === partId);
@@ -627,6 +639,9 @@ export class GameScene extends BaseScene {
   }
 
   private applyGroundPenalty(part: CastlePart): void {
+    // Safety check: ensure part still exists and is valid
+    if (!part || !part.active) return;
+    
     // Apply penalty
     const penalty = GAME_CONFIG.groundPenalty.scoreReduction;
     this.gameState.score = Math.max(0, this.gameState.score - penalty);
@@ -658,7 +673,7 @@ export class GameScene extends BaseScene {
     this.updateUI();
   }
 
-  private showPenaltyFeedback(penalty: number, message: string = "Part touched ground!"): void {
+  private showPenaltyFeedback(penalty: number, message: string = tSync("Part touched ground!")): void {
     // Destroy existing penalty text
     if (this.penaltyText) {
       this.penaltyText.destroy();
@@ -675,7 +690,7 @@ export class GameScene extends BaseScene {
       this,
       x,
       y,
-      `PENALTY: -${penalty} points\n${message}`,
+      `${tSync('Penalty')}: -${penalty} ${tSync('points')}\n${message}`,
       {
         ...TEXT_CONFIGS.SUBTITLE_MEDIUM,
         maxWidth: 0.8,
@@ -713,11 +728,14 @@ export class GameScene extends BaseScene {
   }
 
   private destroyPartWithEffect(part: CastlePart): void {
+    // Safety check: ensure part still exists and is valid
+    if (!part || !part.active) return;
+    
     // Create destruction particles
     this.createDestructionParticles(part.x, part.y);
 
     // Shake effect
-    this.cameras.main.shake(200, 0.01);
+    // this.cameras.main.shake(200, 0.01);
 
     // Destroy the part
     part.destroy();
@@ -733,7 +751,7 @@ export class GameScene extends BaseScene {
   }
 
   private spawnNextPart(): void {
-    if (!this.gameState.isGameActive) return;
+    if (!this.gameState.isGameActive || this.isLevelCompleting) return;
 
     const currentLevel = LEVELS[this.currentLevelIndex] || generateLevel(this.currentLevelIndex + 1);
     if (!currentLevel) return;
@@ -779,78 +797,58 @@ export class GameScene extends BaseScene {
 
     // New placement validation after parts have more time to settle
     this.time.delayedCall(2500, () => {
-      this.validatePartPlacement(droppedPart);
+      // Safety check: ensure part still exists and is valid
+      if (droppedPart && droppedPart.active && this.droppedParts.includes(droppedPart)) {
+        this.validatePartPlacement(droppedPart);
+      }
     });
 
     // Ground violation check still happens, but only for parts that weren't already destroyed
     this.time.delayedCall(2500, () => {
       // Only check if part still exists (wasn't destroyed by placement validation)
-      if (this.droppedParts.includes(droppedPart)) {
+      if (droppedPart && droppedPart.active && this.droppedParts.includes(droppedPart)) {
         this.checkPartForGroundViolation(droppedPart);
       }
     });
 
-    // Check if level is complete after this drop
-    const currentLevel = LEVELS[this.currentLevelIndex];
-    // Finish level when enough successful installations done, independent of reward clears
-    if (currentLevel && this.successfulPartsInstalled >= currentLevel.targetParts) {
-      // Wait longer for parts to fully settle before completing level
-      this.time.delayedCall(3000, () => {
-        if (droppedPart.isPartDropped()) {
-          // Calculate stability points
-          const stabilityPoints = droppedPart.getStabilityPoints();
-          this.gameState.score += stabilityPoints;
+    // Wait for part to settle and then check for stability and score
+    this.time.delayedCall(3000, () => {
+      // Safety check: ensure part still exists and is valid
+      if (droppedPart && droppedPart.active && droppedPart.isPartDropped()) {
+        // Calculate stability points
+        const stabilityPoints = droppedPart.getStabilityPoints();
+        this.gameState.score += stabilityPoints;
 
-          // Only check for collapse if we have multiple parts and they've had time to settle
-          if (this.droppedParts.length >= 2) {
-            const allPartData = this.droppedParts.map(part => part.getPartData());
-            if (this.stabilityManager.hasCollapsed(allPartData)) {
-              this.handleCastleCollapse();
-              return;
-            }
+        // Only check for collapse if we have multiple parts and they've had time to settle
+        if (this.droppedParts.length >= 2) {
+          const allPartData = this.droppedParts.map(part => part.getPartData());
+          if (this.stabilityManager.hasCollapsed(allPartData)) {
+            this.handleCastleCollapse();
+            return;
           }
-
-          this.updateUI();
-
-          // Complete the level
-          this.completeLevel();
         }
-      });
-    } else {
-      // Continue with current level - spawn next part
 
-      // Wait longer for part to settle and then check for stability and score
-      this.time.delayedCall(3000, () => {
-        if (droppedPart.isPartDropped()) {
-          // Calculate stability points
-          const stabilityPoints = droppedPart.getStabilityPoints();
-          this.gameState.score += stabilityPoints;
+        this.updateUI();
+      }
+    });
 
-          // Only check for collapse if we have multiple parts and they've had time to settle
-          if (this.droppedParts.length >= 2) {
-            const allPartData = this.droppedParts.map(part => part.getPartData());
-            if (this.stabilityManager.hasCollapsed(allPartData)) {
-              this.handleCastleCollapse();
-              return;
-            }
-          }
-
-          this.updateUI();
+    // Spawn next part after a short delay (level completion is now handled in validatePartPlacement)
+    this.time.delayedCall(1000, () => {
+      // Only spawn next part if level hasn't been completed and we're not in completion state
+      if (!this.isLevelCompleting) {
+        const currentLevel = LEVELS[this.currentLevelIndex] || generateLevel(this.currentLevelIndex + 1);
+        if (currentLevel && this.successfulPartsInstalled < currentLevel.targetParts) {
+          this.spawnNextPart();
         }
-      });
-
-      // Spawn next part after a short delay
-      this.time.delayedCall(1000, () => {
-        this.spawnNextPart();
-      });
-    }
+      }
+    });
   }
 
   /**
    * Validate if a dropped part has correct level placement
    */
   private validatePartPlacement(part: CastlePart): void {
-    if (!part || !part.isPartDropped()) return;
+    if (!part || !part.active || !part.isPartDropped()) return;
     if (!part.body || !part.body.position) return;
 
     // Get all other parts (excluding the one being validated) that are still valid
@@ -888,6 +886,18 @@ export class GameScene extends BaseScene {
       // Handle Level 6 castle clearing
       if (result.shouldTriggerCastleClear) {
         this.handleLevelSixPlacement(part);
+      }
+
+      // Check if level is complete immediately after successful placement
+      const currentLevel = LEVELS[this.currentLevelIndex] || generateLevel(this.currentLevelIndex + 1);
+      
+      if (currentLevel && this.successfulPartsInstalled >= currentLevel.targetParts) {
+        // Level completed! Complete it immediately
+        this.isLevelCompleting = true; // Prevent spawning new parts
+        this.time.delayedCall(1000, () => {
+          this.completeLevel();
+        });
+        return; // Exit early to prevent further processing
       }
     } else {
       // Wrong placement
@@ -951,6 +961,9 @@ export class GameScene extends BaseScene {
 
   // Level 6 castle clearing - simplified using autonomous part methods
   private handleLevelSixPlacement(levelSixPart: CastlePart): void {
+    // Safety check: ensure part still exists and is valid
+    if (!levelSixPart || !levelSixPart.active) return;
+    
     // Let the part determine what to remove
     const partsToRemove = levelSixPart.findCastlePartsToRemove(this.droppedParts);
     if (partsToRemove.length === 0) return;
@@ -970,11 +983,14 @@ export class GameScene extends BaseScene {
     // Remove parts after celebration delay
     this.time.delayedCall(500, () => {
       partsToRemove.forEach(p => {
-        const idx = this.droppedParts.indexOf(p);
-        if (idx > -1) {
-          this.droppedParts.splice(idx, 1);
+        // Safety check: ensure part still exists before destroying
+        if (p && p.active) {
+          const idx = this.droppedParts.indexOf(p);
+          if (idx > -1) {
+            this.droppedParts.splice(idx, 1);
+          }
+          this.destroyPartWithEffect(p);
         }
-        this.destroyPartWithEffect(p);
       });
     });
 
@@ -1036,7 +1052,7 @@ export class GameScene extends BaseScene {
     const collapseText = this.add.text(
       this.scale.width / 2,
       this.scale.height / 2,
-      'Castle Collapsed!\nTry Again',
+      tSync('Castle Collapsed!') + '\n' + tSync('Try Again'),
       {
         fontSize: '28px',
         color: '#E74C3C',
@@ -1053,8 +1069,12 @@ export class GameScene extends BaseScene {
   }
 
   private restartLevel(): void {
-    // Clear dropped parts
-    this.droppedParts.forEach(part => part.destroy());
+    // Clear dropped parts (with safety check)
+    this.droppedParts.forEach(part => {
+      if (part && part.active) {
+        part.destroy();
+      }
+    });
     this.droppedParts = [];
 
     // Reset game state
@@ -1128,53 +1148,31 @@ export class GameScene extends BaseScene {
     // Animate UI updates for better visual feedback
     if (this.levelText) {
       this.levelText.setText(tSync('Level {{level}}', { level: this.gameState.currentLevel }));
-      // Add subtle pulse animation for level changes
-      this.tweens.add({
-        targets: this.levelText,
-        scaleX: 1.1,
-        scaleY: 1.1,
-        duration: 150,
-        yoyo: true,
-        ease: 'Back.easeOut'
-      });
     }
     
-          if (this.scoreText) {
-        const oldText = this.scoreText.text;
-        const newText = tSync('Score: {{score}}', { score: this.gameState.score });
-        
-        if (oldText !== newText) {
-          this.scoreText.setText(newText);
-          
-          // Simple scale animation for score changes - no color tinting or glows
-          this.tweens.add({
-            targets: this.scoreText,
-            scaleX: 1.15,
-            scaleY: 1.15,
-            duration: 200,
-            yoyo: true,
-            ease: 'Back.easeOut'
-          });
-        }
+    if (this.scoreText) {
+      const oldText = this.scoreText.text;
+      const newText = tSync('Score: {{score}}', { score: this.gameState.score });
+      
+      if (oldText !== newText) {
+        this.scoreText.setText(newText);
+        this.animateStatUpdate(this.scoreText);
       }
+    }
     
-    if (this.livesText) {
-      const currentLevel = LEVELS[this.currentLevelIndex];
+    if (this.targetText) {
+      const currentLevel = LEVELS[this.currentLevelIndex] || generateLevel(this.currentLevelIndex + 1);
       const partsLeft = currentLevel ? Math.max(0, currentLevel.targetParts - this.successfulPartsInstalled) : 0;
       const newText = tSync('Target: {{target}} parts', { target: partsLeft });
       
-      if (this.livesText.text !== newText) {
-        this.livesText.setText(newText);
-        // Pulse animation for target updates
-        this.tweens.add({
-          targets: this.livesText,
-          scaleX: 1.05,
-          scaleY: 1.05,
-          duration: 100,
-          yoyo: true,
-          ease: 'Power2.easeOut'
-        });
+
+      
+      if (this.targetText.text !== newText) {
+        this.targetText.setText(newText);
+        this.animateStatUpdate(this.targetText);
       }
+      
+      // When partsLeft reaches 0, level completion is handled immediately in validatePartPlacement()
     }
 
     // Update stats texts with subtle animations
@@ -1224,10 +1222,10 @@ export class GameScene extends BaseScene {
    * Create level progress bar indicator
    */
   private createProgressBar(): void {
-    const barWidth = this.scale.width * 0.6;
+    const barWidth = this.scale.width * 0.7;
     const barHeight = 8;
     const barX = this.scale.width / 2 - barWidth / 2;
-    const barY = calculateDynamicSpacing(this, 150); // Move much lower to avoid overlap with stats
+    const barY = calculateDynamicSpacing(this, 100); // Move much lower to avoid overlap with stats
 
     // Background bar
     this.progressBarBg = this.add.graphics();
@@ -1239,19 +1237,19 @@ export class GameScene extends BaseScene {
     // Progress fill
     this.progressBar = this.add.graphics();
 
-    // Progress label
-    createCenteredResponsiveText(
-      this,
-      this.scale.width / 2,
-      barY - 25, // Slightly more space above the bar
-      'Level Progress',
-      {
-        ...TEXT_CONFIGS.STATS_SMALL,
-        color: '#FFFFFF',
-        stroke: '#2C3E50',
-        strokeThickness: 1
-      }
-    );
+    // // Progress label
+    // createCenteredResponsiveText(
+    //   this,
+    //   this.scale.width / 2,
+    //   barY - 25, // Slightly more space above the bar
+    //   'Level Progress',
+    //   {
+    //     ...TEXT_CONFIGS.STATS_SMALL,
+    //     color: '#FFFFFF',
+    //     stroke: '#2C3E50',
+    //     strokeThickness: 1
+    //   }
+    // );
 
     this.updateProgressBar();
   }
@@ -1262,14 +1260,14 @@ export class GameScene extends BaseScene {
   private updateProgressBar(): void {
     if (!this.progressBar || !this.progressBarBg) return;
 
-    const currentLevel = LEVELS[this.currentLevelIndex];
+    const currentLevel = LEVELS[this.currentLevelIndex] || generateLevel(this.currentLevelIndex + 1);
     if (!currentLevel) return;
 
     const progress = Math.min(this.successfulPartsInstalled / currentLevel.targetParts, 1);
-    const barWidth = this.scale.width * 0.6;
+    const barWidth = this.scale.width * 0.7;
     const barHeight = 8;
     const barX = this.scale.width / 2 - barWidth / 2;
-    const barY = calculateDynamicSpacing(this, 150); // Match the positioning from createProgressBar
+    const barY = calculateDynamicSpacing(this, 100); // Match the positioning from createProgressBar
 
     this.progressBar.clear();
     
@@ -1312,8 +1310,6 @@ export class GameScene extends BaseScene {
    * Create dynamic instructions text based on current level
    */
   private createDynamicInstructions(): Phaser.GameObjects.Text {
-    const spacing = calculateDynamicSpacing(this, 35);
-    
     // Base instruction that's always shown
     let instructionText = tSync('Tap to drop parts!');
     
@@ -1326,7 +1322,7 @@ export class GameScene extends BaseScene {
     const text = createCenteredResponsiveText(
       this,
       this.scale.width / 2,
-      this.scale.height - spacing * 3,
+      this.scale.height / 1.5,
       instructionText,
       {
         ...TEXT_CONFIGS.STATS_MEDIUM,
@@ -1392,13 +1388,16 @@ export class GameScene extends BaseScene {
    * Override base class method to save game-specific state
    */
   protected saveGameState(): void {
+    // Filter out destroyed parts before saving
+    const validDroppedParts = this.droppedParts.filter(part => part && part.active);
+    
     const state: Omit<PhaserGameState, 'timestamp'> & any = {
       currentScene: 'GameScene',
       sceneStack: [], // Will be populated by PhaserStateManager
       activeScenes: [], // Will be populated by PhaserStateManager
       gameState: { ...this.gameState },
       currentLevelIndex: this.currentLevelIndex,
-      droppedParts: this.droppedParts.map(part => part.getPartData()),
+      droppedParts: validDroppedParts.map(part => part.getPartData()),
       groundViolations: this.groundViolations,
       totalPartsDropped: this.totalPartsDropped,
       overallPartsPlaced: this.overallPartsPlaced,

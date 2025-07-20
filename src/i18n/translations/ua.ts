@@ -54,6 +54,8 @@ export const translations: Record<string, string> = {
   "Level Bonus": "Бонус Рівня",
   "Height Bonus": "Бонус Висоти",
   "Penalty": "Штраф",
+  "points": "очки",
+  "Part touched ground!": "Частина торкнулася землі!",
 
   // Castle Part Levels
   "Foundation": "Фундамент",
@@ -166,6 +168,7 @@ export const translations: Record<string, string> = {
   "Castles Rewarded: {{count}}": "Замків Нагороджено: {{count}}",
   "Wrong Parts: {{count}}": "Неправильних Частин: {{count}}",
   "Combo: {{count}}x": "Комбо: {{count}}x",
+  "Combo Broken! ({{count}}x)": "Комбо Зламано! ({{count}}x)",
   "Level Progress": "Прогрес Рівня"
 };
 
