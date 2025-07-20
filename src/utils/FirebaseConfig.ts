@@ -12,13 +12,13 @@ import { getAnalytics, Analytics } from 'firebase/analytics';
 // Firebase configuration
 const firebaseConfig = {
   // TODO: Replace with your actual Firebase config
-  apiKey: process.env.VITE_FIREBASE_API_KEY || "demo-api-key",
-  authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN || "sand-castle-game-demo.firebaseapp.com",
-  projectId: process.env.VITE_FIREBASE_PROJECT_ID || "sand-castle-game-demo",
-  storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET || "sand-castle-game-demo.appspot.com",
-  messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "123456789",
-  appId: process.env.VITE_FIREBASE_APP_ID || "1:123456789:web:abcdef123456",
-  measurementId: process.env.VITE_FIREBASE_MEASUREMENT_ID || "G-ABCDEF1234"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "demo-api-key",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "sand-castle-game-demo.firebaseapp.com",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "sand-castle-game-demo",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "sand-castle-game-demo.appspot.com",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "123456789",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:123456789:web:abcdef123456",
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-ABCDEF1234"
 };
 
 export interface FirebaseServices {
@@ -73,7 +73,7 @@ export class FirebaseManager {
       
       // Initialize Analytics (only in production)
       let analytics: Analytics | undefined;
-      if (process.env.NODE_ENV === 'production' && typeof window !== 'undefined') {
+      if (import.meta.env.PROD && typeof window !== 'undefined') {
         try {
           analytics = getAnalytics(app);
         } catch (error) {
@@ -82,7 +82,7 @@ export class FirebaseManager {
       }
       
       // Connect to Firestore emulator in development
-      if (process.env.NODE_ENV === 'development') {
+      if (import.meta.env.DEV) {
         try {
           connectFirestoreEmulator(firestore, 'localhost', 8080);
           console.log('[Firebase] Connected to Firestore emulator');

@@ -214,7 +214,7 @@ export class SystemInitializer {
    * Setup debug mode
    */
   private setupDebugMode(): void {
-    if (process.env.NODE_ENV === 'development') {
+    if (import.meta.env.DEV) {
       console.log('[SystemInit] 🔧 Setting up debug mode...');
       setupDebugConsole(this.game);
     }
