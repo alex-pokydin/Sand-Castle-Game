@@ -1,0 +1,222 @@
+---
+description: "AudioManager - Simplified audio system with automatic settings management"
+globs: ["src/**/*.ts"]
+alwaysApply: true
+---
+
+# AudioManager - Self-Managing Audio System
+
+## Overview
+
+AudioManager now automatically handles settings persistence and loading. No manual settings management required!
+
+1. **Use BaseScene** - AudioManager is automatically available as `this.audioManager`
+2. **No Manual Settings** - Never manually load/save settings, AudioManager handles it
+3. **Direct Method Calls** - Call audioManager methods directly, they auto-save
+4. **Settings Persistence** - All changes automatically persist across sessions
+5. **Cross-Scene Consistency** - Settings apply to all scenes automatically
+6. **Use Debug Functions** - Test audio with console debug functions
+7. **Check Current State** - Use getter methods to check current audio state
+
+## Error Handling
+
+AudioManager gracefully handles:
+- ✅ Missing audio files (silent fallback)
+- ✅ Browser audio restrictions (mobile compatibility)
+- ✅ Settings storage failures (uses defaults)
+- ✅ Multiple scene transitions (automatic reinitialization)
+- ✅ Audio context issues (Phaser handles automatically)
+
+## How It Works
+
+- ✅ **Automatic Settings Loading** - Loads saved settings on initialization
+- ✅ **Automatic Settings Saving** - Saves settings on every change
+- ✅ **Settings Persistence** - Settings survive browser refreshes
+- ✅ **Cross-Scene Consistency** - Same settings apply everywhere
+- ✅ **No Manual Management** - SettingsManager integration is internal
+
+## Usage in BaseScene
+
+```typescript
+// In BaseScene (automatically available)
+export class MyScene extends BaseScene {
+  constructor() {
+    super('MyScene');
+    // Set scene-specific background music
+    this.setBackgroundMusic('menu-theme'); // Different music per scene
+  }
+
+  protected customCreate(): void {
+    // AudioManager is ready to use immediately
+    this.audioManager.playSound('drop');
+    
+    // Settings are automatically loaded and applied
+    const currentVolume = this.audioManager.getVolume();
+    
+    // Background music auto-starts with fade in based on scene's music setting
+  }
+}
+```
+
+## Scene-Specific Background Music
+
+Each scene can have its own background music track:
+
+```typescript
+// In scene constructor:
+this.setBackgroundMusic('menu-theme');      // Menu scenes - upbeat
+this.setBackgroundMusic('background-music'); // Game/Settings - calm beach  
+this.setBackgroundMusic('achievement');      // Victory scenes - celebration
+this.setBackgroundMusic('level-complete-music'); // Level completion
+this.setBackgroundMusic(null);              // Silent scenes
+```
+
+**Automatic Behavior:**
+- ✅ Music auto-switches when transitioning between scenes
+- ✅ Smooth fade out/in transitions (1.5 second default)
+- ✅ No music duplication - old track stops before new one starts
+- ✅ Settings automatically apply to all music tracks
+
+## Audio Operations
+
+### Playing Sounds
+```typescript
+// Basic sound playback
+this.audioManager.playSound('drop');
+this.audioManager.playSound('place-good');
+this.audioManager.playSound('place-perfect');
+this.audioManager.playSound('wobble');
+this.audioManager.playSound('collapse');
+this.audioManager.playSound('level-complete');
+
+// With options
+this.audioManager.playSound('drop', { 
+  volume: 0.8,  // Relative to current effects volume
+  rate: 1.2     // Playback speed
+});
+```
+
+### Background Music Control
+```typescript
+// Music control (automatically saves settings)
+this.audioManager.setMusicEnabled(true);   // Enable/disable music
+this.audioManager.setMusicVolume(0.5);     // Set music volume (0-1)
+
+// Immediate music control
+this.audioManager.startBackgroundMusic();  // Start immediately
+this.audioManager.stopBackgroundMusic();   // Stop immediately
+this.audioManager.pauseBackgroundMusic();  // Pause music
+this.audioManager.resumeBackgroundMusic(); // Resume music
+
+// Smooth music transitions (with fade effects)
+this.audioManager.fadeInBackgroundMusic(2000);               // Fade in current music over 2 seconds  
+this.audioManager.fadeInBackgroundMusic(2000, 'menu-theme'); // Fade in specific music track
+this.audioManager.fadeOutBackgroundMusic(1500);              // Fade out over 1.5 seconds
+this.audioManager.stopAllMusic();                            // Stop all music (for scene transitions)
+```
+
+### Volume Control
+```typescript
+// Volume control (automatically saves settings)
+this.audioManager.setVolume(0.8);          // Effects volume (0-1)
+this.audioManager.setMusicVolume(0.4);     // Music volume (0-1)
+this.audioManager.toggleMute();            // Toggle global mute
+
+// Get current settings
+const effectsVolume = this.audioManager.getVolume();
+const musicVolume = this.audioManager.getMusicVolume();
+const isMuted = this.audioManager.isMutedState();
+const musicEnabled = this.audioManager.isMusicEnabled();
+```
+
+### Settings Management
+```typescript
+// Get complete settings object
+const settings = this.audioManager.getCurrentSettings();
+console.log(settings);
+// Returns: { masterVolume, musicVolume, effectsVolume, isMuted, musicEnabled }
+
+// Reload settings from storage (usually not needed)
+this.audioManager.reloadSettings();
+```
+
+## Available Sound Effects
+
+### Core Game Sounds
+- `'drop'` - Part dropping sound (0.2s whoosh)
+- `'place-good'` - Successful placement (0.1s click)
+- `'place-perfect'` - Perfect placement (0.5s chime)
+- `'wobble'` - Unstable warning (0.1s wobble)
+- `'collapse'` - Castle collapse (1s crash)
+- `'level-complete'` - Level completion (2s celebration)
+
+### Background Music
+- Automatic beach ambient music (`'background-music'`)
+- Loops continuously when enabled
+- Volume independent from sound effects
+
+## Settings Persistence
+
+### Automatic Behavior
+```typescript
+// All settings automatically save to localStorage with key:
+// 'sand-castle-audio-settings'
+
+// When you call:
+this.audioManager.setVolume(0.8);
+// It automatically:
+// 1. Updates the audio system
+// 2. Saves to localStorage
+// 3. Applies across all scenes
+```
+
+### Default Settings
+```typescript
+// If no saved settings exist, defaults are:
+{
+  masterVolume: 0.7,
+  musicVolume: 0.4,
+  effectsVolume: 0.7,
+  isMuted: false,
+  musicEnabled: true
+}
+```
+
+## Debug Functions (Console)
+
+```javascript
+// Available in browser console for testing
+debugSettings()           // Show current audio settings
+resetSettings()          // Reset to defaults
+testVolume(0.5)         // Test effects volume
+testMusic(0.3)          // Test music volume
+debugAudio()            // Show audio system status
+testAudio()             // Play all sound effects in sequence
+```
+
+## Integration with UI Controls
+
+### Volume Sliders
+```typescript
+// In settings scene, connect slider to AudioManager
+onVolumeSliderChange(volume: number): void {
+  this.audioManager.setVolume(volume);  // Automatically saves and applies
+}
+
+onMusicSliderChange(volume: number): void {
+  this.audioManager.setMusicVolume(volume);  // Automatically saves and applies
+}
+```
+
+### Toggle Buttons
+```typescript
+// Mute toggle
+onMuteToggle(): void {
+  this.audioManager.toggleMute();  // Returns new mute state
+}
+
+// Music enable/disable
+onMusicToggle(enabled: boolean): void {
+  this.audioManager.setMusicEnabled(enabled);  // Automatically saves
+}
+```

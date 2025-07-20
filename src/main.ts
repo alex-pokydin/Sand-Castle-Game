@@ -4,15 +4,11 @@ import { GameScene } from '@/scenes/GameScene';
 import { GameOverScene } from '@/scenes/GameOverScene';
 import { LevelCompleteScene } from '@/scenes/LevelCompleteScene';
 import { SettingsScene } from '@/scenes/SettingsScene';
+import { BaseScene } from '@/scenes/BaseScene';
 import { GAME_CONFIG, PHYSICS_CONFIG } from '@/config/gameConfig';
 import { PWAManager } from '@/utils/PWAManager';
-import { EnhancedAudioManager } from '@/utils/EnhancedAudioManager';
-
-// Configure Howler.js for better audio management
-import { Howler } from 'howler';
-Howler.volume(0.7);
-Howler.html5PoolSize = 10; // Limit HTML5 audio pool size
-Howler.autoUnlock = true; // Auto-unlock audio on user interaction
+import { AudioManager } from '@/utils/AudioManager';
+import { SettingsManager } from '@/utils/SettingsManager';
 
 // Phaser game configuration
 const config: Phaser.Types.Core.GameConfig = {
@@ -47,9 +43,10 @@ const config: Phaser.Types.Core.GameConfig = {
 // Initialize the game
 const game = new Game(config);
 
-// Initialize PWA and Enhanced Audio systems
+// Initialize PWA, Audio, and Settings systems
 const pwaManager = PWAManager.getInstance();
-const enhancedAudioManager = EnhancedAudioManager.getInstance();
+const audioManager = AudioManager.getInstance();
+const settingsManager = SettingsManager.getInstance();
 
 // Check for saved state and restore scene if available
 import { phaserStateManager } from '@/utils/PhaserStateManager';
@@ -79,11 +76,14 @@ game.events.once('ready', () => {
     } else if (savedState.currentScene === 'SettingsScene') {
       game.scene.start('SettingsScene', { restoreFromState: true, savedState });
     } else {
-      game.scene.start('MenuScene');
+      // Fallback to initial scene detection
+      const initialScene = BaseScene.getInitialScene();
+      game.scene.start(initialScene);
     }
   } else {
-    // No saved state found, starting MenuScene
-    game.scene.start('MenuScene');
+    // No complex saved state, but check for page reload restoration
+    const initialScene = BaseScene.getInitialScene();
+    game.scene.start(initialScene);
   }
   
   // Set up immediate state saving on scene changes
@@ -92,11 +92,7 @@ game.events.once('ready', () => {
   // Setup PWA connectivity listeners
   pwaManager.setupConnectivityListeners();
   
-  // Load enhanced audio
-  enhancedAudioManager.loadBasicSounds();
-  
-  // Start background music
-  enhancedAudioManager.startBackgroundMusic();
+  // Audio will be initialized in each scene
 });
 
 /**
@@ -149,20 +145,73 @@ import { debugPhaserState } from '@/utils/PhaserStateManager';
 
 (window as any).debugAudio = () => {
   console.log('🔊 Audio Status:', {
-    volume: enhancedAudioManager.getVolume(),
-    musicVolume: enhancedAudioManager.getMusicVolume(),
-    isMuted: enhancedAudioManager.isMutedState()
+    volume: audioManager.getVolume(),
+    musicVolume: audioManager.getMusicVolume(),
+    isMuted: audioManager.isMutedState(),
+    poolStatus: audioManager.getAudioPoolStatus()
   });
 };
 
 (window as any).testAudio = () => {
   console.log('🎵 Testing audio sounds...');
-  enhancedAudioManager.playSound('drop');
-  setTimeout(() => enhancedAudioManager.playSound('place-good'), 500);
-  setTimeout(() => enhancedAudioManager.playSound('place-perfect'), 1000);
-  setTimeout(() => enhancedAudioManager.playSound('wobble'), 1500);
-  setTimeout(() => enhancedAudioManager.playSound('collapse'), 2000);
-  setTimeout(() => enhancedAudioManager.playSound('level-complete'), 2500);
+  audioManager.playSound('drop');
+  setTimeout(() => audioManager.playSound('place-good'), 500);
+  setTimeout(() => audioManager.playSound('place-perfect'), 1000);
+  setTimeout(() => audioManager.playSound('wobble'), 1500);
+  setTimeout(() => audioManager.playSound('collapse'), 2000);
+  setTimeout(() => audioManager.playSound('level-complete'), 2500);
+};
+
+(window as any).quickAudioTest = () => {
+  console.log('🔊 Quick audio test...');
+  audioManager.playSound('drop');
+};
+
+(window as any).resetAudioPool = () => {
+  console.log('🔄 Audio pool reset - Phaser handles this automatically');
+};
+
+(window as any).forceAudioResume = () => {
+  console.log('🔊 Audio resume - Phaser handles this automatically');
+};
+
+(window as any).retryAudioCreation = () => {
+  console.log('🔄 Audio retry - Phaser handles this automatically');
+};
+
+(window as any).forceAudioRecovery = () => {
+  console.log('🚀 Audio recovery - Phaser handles this automatically');
+};
+
+(window as any).forceLoadSounds = () => {
+  console.log('🔊 Force load - Phaser handles this automatically');
+};
+
+(window as any).forceCreateBackgroundMusic = () => {
+  console.log('🎵 Force create music - Phaser handles this automatically');
+};
+
+// Settings debug functions
+(window as any).debugSettings = () => {
+  const settings = settingsManager.loadAudioSettings();
+  console.log('🎛️ Current Audio Settings:', settings);
+};
+
+(window as any).resetSettings = () => {
+  settingsManager.clearSettings();
+  console.log('🔄 Settings reset to defaults');
+};
+
+(window as any).testVolume = (volume = 0.5) => {
+  audioManager.setVolume(volume);
+  audioManager.playSound('place-good');
+  console.log(`🔊 Volume set to ${volume} and test sound played`);
+};
+
+(window as any).testMusic = (volume = 0.3) => {
+  audioManager.setMusicVolume(volume);
+  audioManager.startBackgroundMusic();
+  console.log(`🎵 Music volume set to ${volume} and music started`);
 };
 
 (window as any).installApp = () => {

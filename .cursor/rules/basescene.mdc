@@ -1,0 +1,526 @@
+---
+description: "BaseScene Abstract Class - How to create and extend game scenes"
+globs: ["src/scenes/*.ts"]
+alwaysApply: true
+---
+
+# BaseScene Abstract Class
+
+## Overview
+
+All game scenes should extend `BaseScene` instead of Phaser's `Scene` directly. This provides automatic setup for audio, i18n, and mobile optimizations.
+
+1. **Always extend BaseScene** - Never extend Phaser.Scene directly
+2. **Call super() with scene key** - Pass the scene key as a string
+3. **Implement required methods** - customPreload(), customCreate(), onLanguageChanged()
+4. **Use this.audioManager directly** - No need to initialize or get instance
+5. **Handle language changes** - Update all tSync() text in onLanguageChanged()
+6. **Use common backgrounds** - Call this.createBeachBackground() when appropriate
+7. **Keep methods focused** - customCreate() should only contain scene-specific logic
+
+
+## How to Use
+
+### 1. Basic Scene Structure
+
+```typescript
+import { BaseScene } from '@/scenes/BaseScene';
+import { tSync } from '@/i18n';
+
+export class MyScene extends BaseScene {
+  constructor() {
+    super('MySceneKey');  // Pass scene key as string
+  }
+
+  // Required: Custom preload logic (called after base preload)
+  protected async customPreload(): Promise<void> {
+    // Load scene-specific assets here
+    this.load.image('my-sprite', 'assets/my-sprite.png');
+  }
+
+  // Required: Custom create logic (called after base create)
+  protected customCreate(): void {
+    // Create scene-specific objects here
+    this.createBackground();
+    this.createUI();
+    this.setupGameLogic();
+  }
+
+  // Required: Handle language changes
+  protected onLanguageChanged(): void {
+    // Update all translatable text when language changes
+    this.updateTexts();
+  }
+
+  // Optional: Custom shutdown logic
+  protected customShutdown(): void {
+    // Clean up scene-specific resources
+    this.cleanupTimers();
+  }
+}
+```
+
+### 2. What BaseScene Provides Automatically
+
+**Audio Management:**
+- ✅ `this.audioManager` - Ready to use, settings auto-loaded
+- ✅ Audio initialization and settings application
+- ✅ No need to manually init/load/create audio
+- ✅ Scene-specific background music - Set with `setBackgroundMusic()`
+- ✅ **Automatic music management** - Stops/starts based on scene activity
+- ✅ **Zero music overlap** - Inactive scenes cannot play music
+
+**Internationalization:**
+- ✅ i18n system initialized
+- ✅ Language change handlers setup
+- ✅ Automatic cleanup on scene shutdown
+
+**Mobile Optimizations:**
+- ✅ Touch vibration support
+- ✅ Audio context unlock handling
+- ✅ Mobile-friendly input handling
+
+**Common UI Elements:**
+- ✅ `this.createBeachBackground()` - Standard beach-themed gradient background
+- ✅ `this.createStandardButton()` - Consistent button styling and animations
+- ✅ `this.createStandardTitle()` - Standardized title with animation options
+- ✅ `this.createStandardSubtitle()` - Standardized subtitle styling
+- ✅ `this.createPauseButton()` - Standard pause button for top-right corner
+- ✅ **SCENE_CONFIG** - Comprehensive styling and layout constants
+
+### 3. Audio Usage in Scenes
+
+```typescript
+// Set background music in constructor (different for each scene)
+constructor() {
+  super('MyScene');
+  
+  // Choose scene-specific background music:
+  this.setBackgroundMusic('menu-theme');      // Menu scenes
+  this.setBackgroundMusic('background-music'); // Game/Settings scenes  
+  this.setBackgroundMusic('achievement');      // Victory scenes
+  this.setBackgroundMusic(null);              // Silent scenes
+}
+
+// Audio is ready to use immediately in customCreate()
+protected customCreate(): void {
+  // Play sounds (settings automatically applied)
+  this.audioManager.playSound('drop');
+  
+  // Control music (automatically saves settings)
+  this.audioManager.setMusicVolume(0.5);
+  
+  // Get current settings
+  const settings = this.audioManager.getCurrentSettings();
+}
+```
+
+**Available Background Music Tracks:**
+- `'menu-theme'` - Upbeat menu music
+- `'background-music'` - Calm beach ambient music
+- `'achievement'` - Celebration music
+- `'level-complete-music'` - Level completion music
+- `null` - No background music for this scene
+- **Note:** add more background music tracks as needed.
+
+### 4. Standardized UI Components
+
+BaseScene provides consistent UI components that eliminate code duplication:
+
+```typescript
+// Standardized buttons using existing ButtonUtils
+this.createStandardButton(
+  this.scale.width / 2,
+  this.scale.height * 0.5,
+  'Play Game',
+  'PRIMARY',        // Style: PRIMARY, SECONDARY, WARNING, SMALL
+  () => this.startGame()
+);
+
+// Standardized title with animation
+this.createStandardTitle(
+  this.scale.width / 2,
+  this.scale.height * 0.15,
+  'Game Title',
+  true             // Enable bounce animation
+);
+
+// Standardized subtitle
+this.createStandardSubtitle(
+  this.scale.width / 2,
+  this.scale.height * 0.25,
+  'Subtitle Text'
+);
+
+// Standard pause button (top-right corner)
+this.createPauseButton(() => {
+  this.scene.pause();
+  this.scene.launch('MenuScene', { isPaused: true });
+});
+```
+
+### 5. Configuration Constants
+
+Use `SCENE_CONFIG` for consistent styling and layout:
+
+```typescript
+// Layout positioning (as percentage of screen)
+const buttonY = this.scale.height * SCENE_CONFIG.LAYOUT.BUTTON_START_Y; // 0.4
+const spacing = SCENE_CONFIG.LAYOUT.BUTTON_SPACING; // 100px
+
+// Predefined text styles
+const titleText = this.add.text(x, y, text, SCENE_CONFIG.TEXT_STYLES.TITLE);
+const statsText = this.add.text(x, y, text, SCENE_CONFIG.TEXT_STYLES.STATS);
+
+// Button configurations (use ButtonUtils.BUTTON_CONFIGS)
+import { BUTTON_CONFIGS } from '@/utils/ButtonUtils';
+const primaryConfig = BUTTON_CONFIGS.PRIMARY;   // Green button
+const warningConfig = BUTTON_CONFIGS.WARNING;   // Orange button
+```
+
+### 6. Navigation Helpers
+
+Standard navigation methods with automatic music transitions:
+
+```typescript
+// Common scene transitions
+this.goToMenu();           // Navigate to MenuScene
+this.goToSettings();       // Navigate to SettingsScene  
+this.startNewGame();       // Navigate to GameScene
+
+// Advanced transitions (if needed)
+this.transitionToScene('CustomScene', data, fadeOutDuration);
+```
+
+### 7. State Management
+
+**Automatic Development Persistence:**
+```typescript
+// Enable periodic auto-save (optional - BaseScene already saves on all scene events)
+this.enableAutoSave();           // Default: every 15 seconds
+this.enableAutoSave(30000);      // Custom: every 30 seconds
+
+// Override to save scene-specific game state (PhaserStateManager)
+protected saveGameState(): void {
+  const state = {
+    currentScene: this.scene.key,
+    gameState: { /* your game data */ },
+    // ... other game state data
+  };
+  phaserStateManager.saveGameState(this.game, state);
+}
+
+// saveCurrentState() orchestrates both game state and restoration data automatically
+// No need to override saveCurrentState() - it calls saveGameState() and getSceneDataForRestore()
+```
+
+**Immediate Event-Based Saving (Automatic):**
+- ✅ **Scene Creation** - State saved 300ms after scene loads
+- ✅ **Scene Wake** - State saved 200ms after scene becomes active  
+- ✅ **Scene Sleep** - State saved immediately when scene becomes inactive
+- ✅ **Scene Pause** - State saved immediately when paused
+- ✅ **Scene Resume** - State saved immediately when resumed
+- ✅ **Scene Shutdown** - Final state save before scene destruction
+
+**Page Reload State Restoration (StateManager):**
+```typescript
+// Automatic - BaseScene detects page reload and restores last scene within 5 minutes
+// All localStorage operations are encapsulated in PhaserStateManager
+
+// Override to provide scene-specific data for page reload restoration (scene-specific key)
+protected getSceneDataForRestore(): any {
+  return {
+    userScore: this.score,
+    currentLevel: this.level,
+    // ... any data needed to restore this scene
+    // This data is saved with key: 'sand-castle-scene-{sceneKey}'
+  };
+}
+
+// Override to restore scene-specific data from page reload
+protected restoreSceneData(data: any): void {
+  this.score = data.userScore || 0;
+  this.level = data.currentLevel || 1;
+  // ... restore your scene state
+  // Data loaded from scene-specific key prevents overlap
+}
+
+// Override to handle custom init after restoration
+protected customInit(data?: any): void {
+  // Called after restoration, before create
+  // Handle any initialization that depends on restored data
+}
+```
+
+**Static Helpers (StateManager Integration):**
+```typescript
+// Get initial scene for page load (used in main.ts)
+const sceneToStart = BaseScene.getInitialScene(); // Uses phaserStateManager.getInitialScene()
+
+// Clear restoration data when user starts new game  
+BaseScene.clearRestorationData(); // Uses phaserStateManager.clearAllSceneRestoreData()
+```
+
+**Scene-Specific Storage Keys:**
+- `'sand-castle-scene-MenuScene'` - MenuScene restoration data
+- `'sand-castle-scene-GameScene'` - GameScene restoration data  
+- `'sand-castle-scene-SettingsScene'` - SettingsScene restoration data
+- No overlap between different scenes' localStorage data
+
+### 8. Background Creation
+
+```typescript
+// Use the common beach background
+protected customCreate(): void {
+  this.createBeachBackground();  // Creates beautiful beach gradient
+  
+  // Or create custom background
+  this.createCustomBackground();
+}
+```
+
+### 9. Language Change Handling
+
+```typescript
+protected onLanguageChanged(): void {
+  // Update all text objects when language changes
+  if (this.titleText) {
+    this.titleText.setText(tSync('My Title'));
+  }
+  
+  if (this.buttons) {
+    this.updateButtonTexts();
+  }
+}
+```
+
+### 10. Scene Transitions & Smart Music Continuation
+
+```typescript
+// Smart scene transitions with automatic music continuation
+protected transitionToScene(sceneKey: string, data?: any): void {
+  // Automatically detects if music should continue or change
+  this.transitionToScene('GameScene');        // Continues if same music
+  
+  // With data
+  this.transitionToScene('GameScene', { level: 2, score: 1500 });
+  
+  // Custom fade duration (only used if music changes)
+  this.transitionToScene('LevelCompleteScene', undefined, 1500);
+}
+
+// Override to map scene music for smart transitions
+protected getSceneMusicKey(sceneKey: string): string | undefined {
+  const sceneMusicMap = {
+    'MenuScene': 'menu-theme',
+    'GameScene': 'background-music',
+    'SettingsScene': 'background-music',  // Same as GameScene = seamless
+    'LevelCompleteScene': 'level-complete-music'
+  };
+  return sceneMusicMap[sceneKey];
+}
+
+// Control music behavior per scene
+protected shouldStartMusic(): boolean {
+  return true; // Override to return false for scenes without music
+}
+```
+
+**Smart Music Continuation Examples:**
+
+```typescript
+// Example 1: Seamless continuation (GameScene → SettingsScene)
+// Both scenes use 'background-music' → Music continues uninterrupted
+
+constructor() {
+  super('GameScene');
+  this.setBackgroundMusic('background-music');
+}
+
+// User presses settings → transitionToScene('SettingsScene')
+// Result: ✅ Music keeps playing, instant transition
+
+// Example 2: Smooth transition (MenuScene → GameScene)  
+// 'menu-theme' → 'background-music' → Fade out/in with music change
+
+constructor() {
+  super('MenuScene');
+  this.setBackgroundMusic('menu-theme');
+}
+
+// User clicks play → transitionToScene('GameScene')  
+// Result: ✅ Fade out menu-theme, fade in background-music
+
+// Example 3: Instant silence (GameScene → PauseScene)
+// 'background-music' → null → Music stops immediately
+
+// User pauses → transitionToScene('PauseScene') // PauseScene has no music
+// Result: ✅ Music stops instantly, no fade needed
+```
+
+### 11. Smart Music Management & State Persistence
+
+BaseScene provides intelligent music continuation and bulletproof state management:
+
+```typescript
+// Smart Music Continuation - automatic and seamless:
+
+// ✅ Scene created (first load)     → Start music + save state  
+// ✅ Scene becomes active (wake)    → Continue/start music + save state
+// ✅ Scene becomes inactive (sleep) → Smart transition + save state  
+// ✅ Scene paused (pause button)    → Pause music + save state
+// ✅ Scene resumed (resume)         → Resume music + save state
+// ✅ Scene shutdown (complete stop) → Smart cleanup + final save
+
+// Smart transitions prevent unnecessary music interruptions:
+this.scene.start('NextScene');     // ✅ Music continues if same track
+this.scene.launch('ModalScene');   // ✅ Music pauses/resumes smoothly
+this.scene.pause('CurrentScene');  // ✅ Music pauses + state saved
+```
+
+**Smart Music Continuation:**
+- 🎵 **Seamless Playback** - Same music continues between scenes without interruption
+- 🔄 **Smooth Transitions** - Only fade when switching to different tracks
+- ⚡ **Instant Transitions** - No delay when music doesn't need to change
+- 🎯 **Automatic Detection** - Compares current and next music tracks automatically
+
+**Benefits:**
+- 🛡️ **Bulletproof** - Impossible for inactive scenes to play music
+- 💾 **Immediate State Saving** - State saved on ALL scene activity (no 5s delay)
+- 🔄 **Works with any transition** - `start()`, `launch()`, `pause()`, `resume()`
+- 🎯 **Zero configuration** - Just set `backgroundMusic` in constructor
+- 🐛 **Debug logging** - Console shows scene activity, music events, and saves
+
+## Complete Example
+
+```typescript
+import { BaseScene } from '@/scenes/BaseScene';
+import { tSync } from '@/i18n';
+
+export class ExampleScene extends BaseScene {
+  private score: number = 0;
+  private level: number = 1;
+
+  constructor() {
+    super('ExampleScene');
+    // Set scene-specific background music
+    this.setBackgroundMusic('background-music');
+  }
+
+  // Optional: Handle scene-specific initialization
+  protected customInit(data?: any): void {
+    if (data?.score) {
+      this.score = data.score;
+    }
+    if (data?.level) {
+      this.level = data.level;
+    }
+  }
+
+  protected async customPreload(): Promise<void> {
+    // Load scene-specific assets
+    this.load.image('example-sprite', 'assets/example.png');
+  }
+
+  protected customCreate(): void {
+    // Create beach background
+    this.createBeachBackground();
+    
+    // Create standardized title with animation
+    this.createStandardTitle(
+      this.scale.width / 2,
+      this.scale.height * 0.15,
+      tSync('Welcome'),
+      true
+    );
+    
+    // Create standardized buttons
+    this.createStandardButton(
+      this.scale.width / 2,
+      this.scale.height * 0.4,
+      'Play Game',
+      'PRIMARY',
+      () => this.startNewGame()
+    );
+
+    this.createStandardButton(
+      this.scale.width / 2,
+      this.scale.height * 0.5,
+      'Settings',
+      'SECONDARY',
+      () => this.goToSettings()
+    );
+
+    // Create pause button in top-right corner
+    this.createPauseButton(() => {
+      this.scene.pause();
+      this.scene.launch('MenuScene', { isPaused: true });
+    });
+    
+    // Optional: Enable periodic auto-save (BaseScene already saves on all scene events)
+    // this.enableAutoSave(); // Uncomment for additional periodic saves
+    
+    // Play welcome sound
+    this.audioManager.playSound('place-good');
+  }
+
+  // Save scene-specific game state (called by saveCurrentState)
+  protected saveGameState(): void {
+    // Save game state with scene-specific data
+    const state: Omit<PhaserGameState, 'timestamp'> = {
+      currentScene: this.scene.key,
+      sceneStack: [],
+      activeScenes: [],
+      gameState: {
+        currentLevel: this.level,
+        score: this.score,
+        lives: 3,
+        droppedParts: [],
+        isGameActive: true,
+        isFirstPart: false
+      },
+      // ... other game state specific to this scene
+      currentLevelIndex: this.level - 1,
+      droppedParts: [],
+      groundViolations: [],
+      totalPartsDropped: 0,
+      overallPartsPlaced: 0,
+      successfulPartsInstalled: 0,
+      wrongPartsCurrentLevel: 0,
+      totalSuccessfulPlaced: 0,
+      rewardedCastleCount: 0,
+      partSpeed: 80,
+      direction: 1
+    };
+
+    phaserStateManager.saveGameState(this.game, state);
+  }
+
+  // Save scene-specific data for page reload restoration (called by saveCurrentState)
+  protected getSceneDataForRestore(): any {
+    return {
+      score: this.score,
+      level: this.level,
+      // Any other data needed to restore this scene
+      // Saved with scene-specific key: 'sand-castle-scene-ExampleScene'
+    };
+  }
+
+  // Restore scene-specific data from page reload (called automatically)
+  protected restoreSceneData(data: any): void {
+    this.score = data.score || 0;
+    this.level = data.level || 1;
+    console.log(`Restored ExampleScene: level ${this.level}, score ${this.score}`);
+  }
+
+  protected onLanguageChanged(): void {
+    // BaseScene components automatically handle translations
+    // Only update custom text objects here if needed
+  }
+
+  protected customShutdown(): void {
+    // Clean up scene-specific resources
+    console.log('ExampleScene shutting down');
+  }
+}
+```

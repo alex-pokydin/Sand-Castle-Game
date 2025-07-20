@@ -3,7 +3,8 @@ import { CastlePart } from '@/objects/CastlePart';
 import { GAME_CONFIG, LEVELS, COLORS, PHYSICS_CONFIG, SCORING_CONFIG, generateLevel } from '@/config/gameConfig';
 import { GameState, GroundViolation } from '@/types/Game';
 import { StabilityManager } from '@/objects/StabilityManager';
-import { EnhancedAudioManager } from '@/utils/EnhancedAudioManager';
+import { AudioManager } from '@/utils/AudioManager';
+import { SettingsManager } from '@/utils/SettingsManager';
 import { VisualEffects } from '@/utils/VisualEffects';
 import { getAvailablePartLevels, getPartWidth, getPartHeight } from '@/utils/PartUtils';
 import { tSync, initI18n, onLanguageChange, offLanguageChange } from '@/i18n';
@@ -23,7 +24,8 @@ export class GameScene extends Scene {
   private penaltyText?: Phaser.GameObjects.Text;
   private currentLevelIndex: number = 0;
   private stabilityManager: StabilityManager;
-  private audioManager: EnhancedAudioManager;
+  private audioManager: AudioManager;
+  private settingsManager: SettingsManager;
   private visualEffects: VisualEffects;
   private groundViolations: GroundViolation[] = [];
   private totalPartsDropped: number = 0; // Track total parts dropped including destroyed ones
@@ -44,7 +46,8 @@ export class GameScene extends Scene {
   constructor() {
     super({ key: 'GameScene' });
     this.stabilityManager = new StabilityManager();
-    this.audioManager = EnhancedAudioManager.getInstance();
+    this.audioManager = AudioManager.getInstance();
+    this.settingsManager = SettingsManager.getInstance();
     this.visualEffects = new VisualEffects(this);
 
     this.gameState = {
@@ -138,6 +141,14 @@ export class GameScene extends Scene {
     }
   }
 
+  preload(): void {
+    // Initialize audio manager with this scene
+    this.audioManager.init(this);
+    
+    // Load audio assets
+    this.audioManager.loadSounds();
+  }
+
   async create(): Promise<void> {
     // GameScene create() called
     // Initialize i18n system
@@ -152,8 +163,12 @@ export class GameScene extends Scene {
     };
     onLanguageChange(this.languageChangeHandler);
 
-    // Load audio
-    this.audioManager.loadBasicSounds();
+    // Create audio objects after loading
+    this.audioManager.createSounds();
+    
+    // Load and apply saved audio settings
+    const savedSettings = this.settingsManager.loadAudioSettings();
+    this.settingsManager.applySettingsToAudioManager(this.audioManager, savedSettings);
 
     // Setup physics first with proper configuration
     this.setupPhysics();

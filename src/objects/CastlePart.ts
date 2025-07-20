@@ -2,7 +2,7 @@ import { Scene } from 'phaser';
 import { CastlePartData, PartLevel, PlacementResult } from '@/types/Game';
 import { COLORS, PHYSICS_CONFIG, getPartColor, PLACEMENT_CONFIG } from '@/config/gameConfig';
 import { StabilityManager } from '@/objects/StabilityManager';
-import { EnhancedAudioManager } from '@/utils/EnhancedAudioManager';
+import { AudioManager } from '@/utils/AudioManager';
 
 export class CastlePart extends Phaser.GameObjects.Rectangle {
   private partData: CastlePartData;
@@ -10,7 +10,7 @@ export class CastlePart extends Phaser.GameObjects.Rectangle {
   private isDropped: boolean = false;
   private shadow?: Phaser.GameObjects.Rectangle;
   private stabilityManager: StabilityManager;
-  private audioManager: EnhancedAudioManager;
+  private audioManager: AudioManager;
   private stabilityGlow?: Phaser.GameObjects.Arc;
   private lastStabilityLevel: 'stable' | 'warning' | 'unstable' = 'stable';
   private matterBody?: MatterJS.BodyType;
@@ -24,7 +24,7 @@ export class CastlePart extends Phaser.GameObjects.Rectangle {
     
     this.partLevel = partLevel;
     this.stabilityManager = new StabilityManager();
-    this.audioManager = EnhancedAudioManager.getInstance();
+    this.audioManager = AudioManager.getInstance();
     
     this.partData = {
       id: `part_${Date.now()}_${Math.random()}`,

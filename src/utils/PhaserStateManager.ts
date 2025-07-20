@@ -42,6 +42,9 @@ export interface SceneState {
 export class PhaserStateManager {
   private static instance: PhaserStateManager;
   private readonly REGISTRY_KEY = 'sand-castle-game-state';
+  private readonly SCENE_DATA_PREFIX = 'sand-castle-scene-';
+  private readonly LAST_SCENE_KEY = 'sand-castle-last-scene';
+  private readonly LAST_SAVE_TIME_KEY = 'sand-castle-last-save-time';
 
   private constructor() {}
 
@@ -284,6 +287,117 @@ export class PhaserStateManager {
     });
 
     // Scene stack restoration completed
+  }
+
+  /**
+   * Save scene-specific data for page reload restoration (localStorage)
+   */
+  saveSceneRestoreData(sceneKey: string, data: any): void {
+    try {
+      const sceneDataKey = `${this.SCENE_DATA_PREFIX}${sceneKey}`;
+      localStorage.setItem(sceneDataKey, JSON.stringify(data));
+      localStorage.setItem(this.LAST_SCENE_KEY, sceneKey);
+      localStorage.setItem(this.LAST_SAVE_TIME_KEY, Date.now().toString());
+      console.log(`[StateManager] Saved restore data for scene '${sceneKey}'`);
+    } catch (error) {
+      console.warn(`[StateManager] Failed to save scene restore data for '${sceneKey}':`, error);
+    }
+  }
+
+  /**
+   * Load scene-specific data for page reload restoration (localStorage)
+   */
+  loadSceneRestoreData(sceneKey: string): any | null {
+    try {
+      const sceneDataKey = `${this.SCENE_DATA_PREFIX}${sceneKey}`;
+      const savedData = localStorage.getItem(sceneDataKey);
+      if (savedData) {
+        console.log(`[StateManager] Loaded restore data for scene '${sceneKey}'`);
+        return JSON.parse(savedData);
+      }
+    } catch (error) {
+      console.warn(`[StateManager] Failed to load scene restore data for '${sceneKey}':`, error);
+      this.clearSceneRestoreData(sceneKey);
+    }
+    return null;
+  }
+
+  /**
+   * Clear scene-specific restore data (localStorage)
+   */
+  clearSceneRestoreData(sceneKey: string): void {
+    const sceneDataKey = `${this.SCENE_DATA_PREFIX}${sceneKey}`;
+    localStorage.removeItem(sceneDataKey);
+    console.log(`[StateManager] Cleared restore data for scene '${sceneKey}'`);
+  }
+
+  /**
+   * Get the last active scene for page reload restoration
+   */
+  getLastActiveScene(): { sceneKey: string; timestamp: number } | null {
+    try {
+      const lastScene = localStorage.getItem(this.LAST_SCENE_KEY);
+      const lastSaveTimestamp = parseInt(localStorage.getItem(this.LAST_SAVE_TIME_KEY) || '0');
+      
+      if (lastScene && lastSaveTimestamp) {
+        return { sceneKey: lastScene, timestamp: lastSaveTimestamp };
+      }
+    } catch (error) {
+      console.warn('[StateManager] Failed to get last active scene:', error);
+    }
+    return null;
+  }
+
+  /**
+   * Check if scene restoration is valid (within time window)
+   */
+  isSceneRestorationValid(maxAgeMs: number = 5 * 60 * 1000): boolean {
+    const lastActive = this.getLastActiveScene();
+    if (!lastActive) return false;
+    
+    const currentTime = Date.now();
+    const isValid = currentTime - lastActive.timestamp < maxAgeMs;
+    
+    console.log(`[StateManager] Scene restoration valid: ${isValid} (age: ${Math.round((currentTime - lastActive.timestamp) / 1000)}s)`);
+    return isValid;
+  }
+
+  /**
+   * Get initial scene for page load with restoration logic
+   */
+  getInitialScene(defaultScene: string = 'MenuScene'): string {
+    if (this.isSceneRestorationValid()) {
+      const lastActive = this.getLastActiveScene();
+      if (lastActive) {
+        console.log(`[StateManager] Restoring to scene: ${lastActive.sceneKey}`);
+        return lastActive.sceneKey;
+      }
+    }
+    
+    console.log(`[StateManager] Starting fresh with: ${defaultScene}`);
+    return defaultScene;
+  }
+
+  /**
+   * Clear all scene restoration data
+   */
+  clearAllSceneRestoreData(): void {
+    try {
+      // Clear scene-specific data
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith(this.SCENE_DATA_PREFIX)) {
+          localStorage.removeItem(key);
+        }
+      });
+      
+      // Clear restoration tracking
+      localStorage.removeItem(this.LAST_SCENE_KEY);
+      localStorage.removeItem(this.LAST_SAVE_TIME_KEY);
+      
+      console.log('[StateManager] Cleared all scene restoration data');
+    } catch (error) {
+      console.warn('[StateManager] Failed to clear scene data:', error);
+    }
   }
 }
 

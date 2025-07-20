@@ -16,8 +16,7 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          phaser: ['phaser'],
-          howler: ['howler']
+          phaser: ['phaser']
         }
       }
     }

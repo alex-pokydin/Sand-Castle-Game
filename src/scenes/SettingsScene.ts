@@ -1,91 +1,48 @@
-import { Scene } from 'phaser';
-import { tSync, setLanguage, getCurrentLanguage, getAvailableLanguages, onLanguageChange, offLanguageChange } from '@/i18n';
-import { supportsVibration } from '@/utils/DeviceUtils';
-import { EnhancedAudioManager } from '@/utils/EnhancedAudioManager';
+import { tSync, setLanguage, getCurrentLanguage, getAvailableLanguages } from '@/i18n';
+import { BaseScene } from '@/scenes/BaseScene';
 
-export class SettingsScene extends Scene {
-  private titleText?: Phaser.GameObjects.Text;
+export class SettingsScene extends BaseScene {
   private languageButtons: Phaser.GameObjects.Container[] = [];
-  private backgroundGradient?: Phaser.GameObjects.Graphics;
-  private languageChangeHandler?: (lang: any) => void;
-  private audioManager: EnhancedAudioManager;
+  private isDragging: boolean = false;
+  private dragTarget?: Phaser.GameObjects.Container;
+  private lastSoundFeedbackTime: number = 0;
   
   constructor() {
-    super({ key: 'SettingsScene' });
-    this.audioManager = EnhancedAudioManager.getInstance();
+    super('SettingsScene');
+    // Settings scene uses calm beach ambient music
+    this.setBackgroundMusic('background-music');
   }
 
-  async preload(): Promise<void> {
-    // Subscribe to language changes to update UI
-    this.languageChangeHandler = () => {
-      if (this.scene.isActive()) {
-        this.updateLanguageButtons();
-      }
-    };
-    onLanguageChange(this.languageChangeHandler);
+  // Implementation of abstract methods from BaseScene
+  protected async customPreload(): Promise<void> {
+    // No custom preload logic needed
   }
 
-  create(): void {
+  protected customCreate(): void {
     this.createBackground();
     this.createTitle();
     this.createLanguageSelector();
     this.createAudioSettings();
     this.createBackButton();
-    this.setupMobileOptimizations();
+    this.setupVolumeSliderDragging();
+  }
+
+  protected onLanguageChanged(): void {
+    this.updateLanguageButtons();
   }
 
   private createBackground(): void {
-    // Create beach-themed gradient background (same as menu)
-    this.backgroundGradient = this.add.graphics();
-    
-    this.backgroundGradient.fillGradientStyle(
-      0x87CEEB, 0x87CEEB, // Sky blue at top
-      0xF4D03F, 0xE67E22, // Sandy yellow to orange at bottom
-      1
-    );
-    this.backgroundGradient.fillRect(0, 0, this.scale.width, this.scale.height);
-
-    // Add simple wave effect at bottom
-    const waves = this.add.graphics();
-    waves.fillStyle(0x3498DB, 0.3);
-    waves.beginPath();
-    waves.moveTo(0, this.scale.height * 0.8);
-    
-    for (let x = 0; x <= this.scale.width; x += 20) {
-      const waveHeight = Math.sin((x * 0.02) + (Date.now() * 0.001)) * 10;
-      waves.lineTo(x, this.scale.height * 0.8 + waveHeight);
-    }
-    
-    waves.lineTo(this.scale.width, this.scale.height);
-    waves.lineTo(0, this.scale.height);
-    waves.closePath();
-    waves.fillPath();
+    // Use the common beach background from BaseScene
+    this.createBeachBackground();
   }
 
   private createTitle(): void {
-    const titleStyle: Phaser.Types.GameObjects.Text.TextStyle = {
-      fontSize: '30px',
-      fontFamily: 'Arial, sans-serif',
-      color: '#2C3E50',
-      stroke: '#FFFFFF',
-      strokeThickness: 3,
-      shadow: {
-        offsetX: 2,
-        offsetY: 2,
-        color: '#34495E',
-        blur: 1,
-        fill: true
-      },
-      align: 'center'
-    };
-
-    this.titleText = this.add.text(
+    // Use standardized subtitle creation from BaseScene (slightly smaller than main title)
+    this.createStandardSubtitle(
       this.scale.width / 2,
       this.scale.height * 0.10,
-      tSync('Settings'),
-      titleStyle
+      tSync('Settings')
     );
-    this.titleText.setOrigin(0.5);
   }
 
   private createLanguageSelector(): void {
@@ -388,53 +345,70 @@ export class SettingsScene extends Scene {
   }
 
   private createMusicToggle(): void {
-    const isMusicEnabled = !this.audioManager.isMutedState();
-    const currentVolume = this.audioManager.getMusicVolume();
-    
     // Create combined toggle and volume slider in single line
     this.createToggleWithVolume(
       this.scale.width / 2,
       this.scale.height * 0.42,
       tSync('Background Music'),
-      isMusicEnabled,
-      currentVolume,
+      this.audioManager.isMusicEnabled(),
+      this.audioManager.getMusicVolume(),
       (enabled: boolean) => {
+        this.audioManager.setMusicEnabled(enabled);
+        // Immediate feedback: start or stop music based on toggle
         if (enabled) {
-          this.audioManager.resumeBackgroundMusic();
+          this.audioManager.startBackgroundMusic();
         } else {
-          this.audioManager.pauseBackgroundMusic();
+          this.audioManager.stopBackgroundMusic();
         }
       },
       (volume: number) => {
         this.audioManager.setMusicVolume(volume);
+        // Music volume changes are immediately audible if music is playing
       }
     );
   }
 
 
 
-  private createSoundVolumeSlider(): void {
-    const currentVolume = this.audioManager.getVolume();
-    
+    private createSoundVolumeSlider(): void {
     // Create combined toggle and volume slider in single line
     this.createToggleWithVolume(
       this.scale.width / 2,
       this.scale.height * 0.52,
       tSync('Sound Effects'),
-      true, // Sound effects are always enabled
-      currentVolume,
+      this.audioManager.isEffectsEnabled(),
+      this.audioManager.getVolume(),
       (enabled: boolean) => {
-        // Sound effects toggle functionality (could be used for mute all sounds)
-        if (!enabled) {
-          this.audioManager.setVolume(0);
-        } else {
-          this.audioManager.setVolume(currentVolume);
-        }
+        // Set effects enabled state directly
+        this.audioManager.setEffectsEnabled(enabled);
       },
       (volume: number) => {
         this.audioManager.setVolume(volume);
+        // Play test sound with throttling to avoid spam during dragging
+        const now = Date.now();
+        if (now - this.lastSoundFeedbackTime > 300) { // Max one sound per 300ms
+          this.audioManager.playSound('place-good');
+          this.lastSoundFeedbackTime = now;
+        }
       }
     );
+  }
+
+  /**
+   * Setup volume slider dragging functionality
+   */
+  private setupVolumeSliderDragging(): void {
+    // Add global pointer move and up events for smooth dragging
+    this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
+      if (this.isDragging && this.dragTarget) {
+        this.handleSliderDrag(this.dragTarget, pointer);
+      }
+    });
+
+    this.input.on('pointerup', () => {
+      this.isDragging = false;
+      this.dragTarget = undefined;
+    });
   }
 
   private createToggleWithVolume(
@@ -660,17 +634,39 @@ export class SettingsScene extends Scene {
     (container as any).knobRadius = knobRadius;
     (container as any).onChange = onChange;
 
-    // Slider interactions
+    // Slider interactions - support both click and drag
     container.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-      const localX = pointer.x - container.x;
-      const normalizedX = Math.max(-sliderWidth/2, Math.min(sliderWidth/2, localX));
-      const volume = (normalizedX + sliderWidth/2) / sliderWidth;
+      // Start dragging
+      this.isDragging = true;
+      this.dragTarget = container;
       
-      this.updateCompactVolumeSlider(container, volume);
-      (container as any).onChange(volume);
+      // Also handle immediate click
+      this.handleSliderDrag(container, pointer);
     });
 
     return container;
+  }
+
+  /**
+   * Handle slider dragging
+   */
+  private handleSliderDrag(container: Phaser.GameObjects.Container, pointer: Phaser.Input.Pointer): void {
+    const sliderWidth = (container as any).sliderWidth;
+    const onChange = (container as any).onChange;
+    
+    // Convert pointer position to local coordinates relative to the slider container
+    const worldTransform = container.getWorldTransformMatrix();
+    const localPointer = worldTransform.applyInverse(pointer.x, pointer.y);
+    
+    // Calculate position relative to slider center
+    const localX = localPointer.x;
+    
+    // Clamp to slider bounds and calculate volume (0-1)
+    const normalizedX = Math.max(-sliderWidth/2, Math.min(sliderWidth/2, localX));
+    const volume = Math.max(0, Math.min(1, (normalizedX + sliderWidth/2) / sliderWidth));
+    
+    this.updateCompactVolumeSlider(container, volume);
+    onChange(volume);
   }
 
   private updateCompactVolumeSlider(container: Phaser.GameObjects.Container, volume: number): void {
@@ -680,14 +676,17 @@ export class SettingsScene extends Scene {
     const sliderWidth = (container as any).sliderWidth;
     const knobRadius = (container as any).knobRadius;
     
+    // Clamp volume to ensure it's between 0 and 1
+    const clampedVolume = Math.max(0, Math.min(1, volume));
+    
     // Update track fill
     trackFill.clear();
     trackFill.fillStyle(0x3498DB);
-    const fillWidth = (sliderWidth * volume);
+    const fillWidth = (sliderWidth * clampedVolume);
     trackFill.fillRoundedRect(-sliderWidth/2, -3, fillWidth, 6, 3);
 
     // Update knob position
-    const knobX = -sliderWidth/2 + (sliderWidth * volume);
+    const knobX = -sliderWidth/2 + (sliderWidth * clampedVolume);
     knob.clear();
     knob.fillStyle(0xFFFFFF);
     knob.fillCircle(knobX, 0, knobRadius);
@@ -695,7 +694,7 @@ export class SettingsScene extends Scene {
     knob.strokeCircle(knobX, 0, knobRadius);
 
     // Update volume text
-    volumeText.setText(`${Math.round(volume * 100)}%`);
+    volumeText.setText(`${Math.round(clampedVolume * 100)}%`);
   }
 
 
@@ -788,24 +787,7 @@ export class SettingsScene extends Scene {
     return container;
   }
 
-  private setupMobileOptimizations(): void {
-    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-      const isTouchInput = (pointer as any).pointerType === 'touch' || (pointer.event as any)?.pointerType === 'touch';
 
-      if (isTouchInput && supportsVibration()) {
-        navigator.vibrate(50);
-      }
-
-      if (this.sound.locked) {
-        this.sound.unlock();
-      } else {
-        const ctx = (this.sound as any).context as AudioContext | undefined;
-        if (ctx && ctx.state === 'suspended') {
-          ctx.resume().catch(() => {/* ignore */});
-        }
-      }
-    });
-  }
 
   private async selectLanguage(languageCode: string): Promise<void> {
     // Selecting language
@@ -827,14 +809,9 @@ export class SettingsScene extends Scene {
   }
 
   private goBack(): void {
-    // Stop SettingsScene and return to MenuScene (which should be running in background)
-    this.scene.stop();
+    // Use standardized navigation helper from BaseScene
+    this.goToMenu();
   }
 
-  shutdown(): void {
-    if (this.languageChangeHandler) {
-      offLanguageChange(this.languageChangeHandler);
-      this.languageChangeHandler = undefined;
-    }
-  }
+
 } 

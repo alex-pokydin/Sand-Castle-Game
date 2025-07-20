@@ -5,14 +5,12 @@
   "dependencies": {
     "@types/matter-js": "^0.19.8",
     "firebase": "^10.0.0",
-    "howler": "^2.2.3",
     "matter-js": "^0.20.0",
     "phaser": "^3.70.0",
     "phaser-matter-collision-plugin": "^1.0.0",
     "sharp": "^0.34.3"
   },
   "devDependencies": {
-    "@types/howler": "^2.2.7",
     "@typescript-eslint/eslint-plugin": "^6.0.0",
     "@typescript-eslint/parser": "^6.0.0",
     "eslint": "^8.45.0",

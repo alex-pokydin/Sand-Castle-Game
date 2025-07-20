@@ -1,17 +1,14 @@
-import { Scene } from 'phaser';
-import { tSync, initI18n, onLanguageChange, offLanguageChange, getCurrentLanguage, setLanguage } from '@/i18n';
-import { supportsVibration } from '@/utils/DeviceUtils';
+import { tSync, getCurrentLanguage, setLanguage } from '@/i18n';
 import { phaserStateManager, PhaserGameState } from '@/utils/PhaserStateManager';
+import { BaseScene } from '@/scenes/BaseScene';
 
-export class MenuScene extends Scene {
+export class MenuScene extends BaseScene {
   private titleText?: Phaser.GameObjects.Text;
   private playButton?: Phaser.GameObjects.Container;
   private settingsButton?: Phaser.GameObjects.Container;
   private highScoreText?: Phaser.GameObjects.Text;
-  private backgroundGradient?: Phaser.GameObjects.Graphics;
   private decorativeElements: Phaser.GameObjects.GameObject[] = [];
   private isGamePaused: boolean = false;
-  private languageChangeHandler?: (lang: any) => void;
   private pauseData?: { 
     isPaused: boolean; 
     fromLevelComplete?: boolean;
@@ -19,7 +16,9 @@ export class MenuScene extends Scene {
   };
   
   constructor() {
-    super({ key: 'MenuScene' });
+    super('MenuScene');
+    // Menu scene uses dedicated menu theme music
+    this.setBackgroundMusic('menu-theme');
   }
 
   init(data?: { 
@@ -40,20 +39,10 @@ export class MenuScene extends Scene {
     this.pauseData = data;
   }
 
-  async preload(): Promise<void> {
-    // MenuScene preload() called
-    
-    // Initialize i18n system
-    await initI18n();
-    
-    // Subscribe to language changes to update UI
-    this.languageChangeHandler = () => {
-      // Only update if scene is active to avoid calling on destroyed objects
-      if (this.scene.isActive()) {
-        this.updateTexts();
-      }
-    };
-    onLanguageChange(this.languageChangeHandler);
+  // Implementation of BaseScene abstract methods
+  protected async customPreload(): Promise<void> {
+    // MenuScene specific preload (if needed)
+    // BaseScene handles audio and i18n initialization
   }
 
   /**
@@ -70,17 +59,28 @@ export class MenuScene extends Scene {
     // Menu state restored successfully
   }
 
-  async create(): Promise<void> {
-    // MenuScene create() called
-    
+  protected customCreate(): void {
     // Check if we're coming from a paused game or level complete scene
     this.isGamePaused = this.pauseData?.isPaused || this.pauseData?.fromLevelComplete || false;
     
-    // Show pause menu if:
-    // 1. We have explicit pause data (from pause button)
-    // 2. We're coming from level complete scene (to show New Game button)
-    
     // Ensure language is fully set before creating UI
+    this.ensureCorrectLanguage();
+    
+    this.createBackground();
+    this.createTitle();
+    this.createMenuButtons();
+    this.createHighScoreDisplay();
+    this.createDecorativeElements();
+    
+    // Enable auto-save for development persistence
+    this.enableAutoSave();
+  }
+
+  protected onLanguageChanged(): void {
+    this.updateTexts();
+  }
+
+  private async ensureCorrectLanguage(): Promise<void> {
     const currentLang = getCurrentLanguage();
     
     // If language is not Ukrainian but should be, force a refresh
@@ -90,84 +90,21 @@ export class MenuScene extends Scene {
         await setLanguage('ua');
       }
     }
-    
-    this.createBackground();
-    this.createTitle();
-    this.createMenuButtons();
-    this.createHighScoreDisplay();
-    this.createDecorativeElements();
-    this.setupMobileOptimizations();
-    
-    // Enable auto-save for development persistence
-    this.enableAutoSave();
   }
 
   private createBackground(): void {
-    // Create beach-themed gradient background
-    this.backgroundGradient = this.add.graphics();
-    
-    // Beach sky gradient - light blue to sandy yellow
-    this.backgroundGradient.fillGradientStyle(
-      0x87CEEB, 0x87CEEB, // Sky blue at top
-      0xF4D03F, 0xE67E22, // Sandy yellow to orange at bottom
-      1
-    );
-    this.backgroundGradient.fillRect(0, 0, this.scale.width, this.scale.height);
-
-    // Add simple wave effect at bottom
-    const waves = this.add.graphics();
-    waves.fillStyle(0x3498DB, 0.3);
-    waves.beginPath();
-    waves.moveTo(0, this.scale.height * 0.8);
-    
-    // Create wave path
-    for (let x = 0; x <= this.scale.width; x += 20) {
-      const waveHeight = Math.sin((x * 0.02) + (Date.now() * 0.001)) * 10;
-      waves.lineTo(x, this.scale.height * 0.8 + waveHeight);
-    }
-    
-    waves.lineTo(this.scale.width, this.scale.height);
-    waves.lineTo(0, this.scale.height);
-    waves.closePath();
-    waves.fillPath();
+    // Use the common beach background from BaseScene
+    this.createBeachBackground();
   }
 
   private createTitle(): void {
-    // Large, colorful title with shadow for depth
-    const titleStyle: Phaser.Types.GameObjects.Text.TextStyle = {
-      fontSize: '40px',
-      fontFamily: 'Arial, sans-serif',
-      color: '#2C3E50',
-      stroke: '#FFFFFF',
-      strokeThickness: 4,
-      shadow: {
-        offsetX: 3,
-        offsetY: 3,
-        color: '#34495E',
-        blur: 2,
-        fill: true
-      },
-      align: 'center'
-    };
-
-    this.titleText = this.add.text(
+    // Use standardized title creation from BaseScene
+    this.titleText = this.createStandardTitle(
       this.scale.width / 2,
       this.scale.height * 0.15,
       tSync('Sand Castle'),
-      titleStyle
+      true // Enable animation
     );
-    this.titleText.setOrigin(0.5);
-
-    // Add gentle bounce animation
-    this.tweens.add({
-      targets: this.titleText,
-      scaleX: 1.05,
-      scaleY: 1.05,
-      duration: 2000,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut'
-    });
   }
 
   private createMenuButtons(): void {
@@ -418,34 +355,7 @@ export class MenuScene extends Scene {
     }
   }
 
-  private setupMobileOptimizations(): void {
-    // Ensure all interactive elements have minimum 44px touch targets
-    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-      // Determine if this was a genuine touch interaction
-      const isTouchInput = (pointer as any).pointerType === 'touch' || (pointer.event as any)?.pointerType === 'touch';
-
-      if (isTouchInput && supportsVibration()) {
-        navigator.vibrate(50);
-      }
-
-      // Resume / unlock the Web Audio context as soon as we have a user gesture
-      if (this.sound.locked) {
-        this.sound.unlock();
-      } else {
-        const ctx = (this.sound as any).context as AudioContext | undefined;
-        if (ctx && ctx.state === 'suspended') {
-          ctx.resume().catch(() => {/* ignore */});
-        }
-      }
-    });
-
-    // Add orientation change handling
-    this.scale.on('orientationchange', () => {
-      this.time.delayedCall(100, () => {
-        this.refreshLayout();
-      });
-    });
-  }
+  // Mobile optimizations are handled by BaseScene
 
   private setupButtonSounds(buttons: Phaser.GameObjects.Container[]): void {
     buttons.forEach(button => {
@@ -484,30 +394,7 @@ export class MenuScene extends Scene {
     }
   }
 
-  private refreshLayout(): void {
-    // Refresh layout for orientation changes
-    // This would recalculate positions based on new screen dimensions
-    const newWidth = this.scale.width;
-    const newHeight = this.scale.height;
-    
-    // Update background
-    if (this.backgroundGradient) {
-      this.backgroundGradient.clear();
-      this.backgroundGradient.fillGradientStyle(
-        0x87CEEB, 0x87CEEB,
-        0xF4D03F, 0xE67E22,
-        1
-      );
-      this.backgroundGradient.fillRect(0, 0, newWidth, newHeight);
-    }
-    
-    // Update positions of main elements
-    if (this.titleText) {
-      this.titleText.setPosition(newWidth / 2, newHeight * 0.15);
-    }
-    
-    // Update other elements similarly...
-  }
+  // Layout refreshing is handled by BaseScene
 
   private getHighScore(): number {
     try {
@@ -527,56 +414,33 @@ export class MenuScene extends Scene {
   }
 
   private startGame(): void {
-    // Transition to GameScene with nice effect
-    this.cameras.main.fadeOut(300, 0, 0, 0);
-    
-    this.cameras.main.once('camerafadeoutcomplete', () => {
-      this.scene.start('GameScene');
-    });
+    // Use BaseScene transition with music fade
+    this.transitionToScene('GameScene');
   }
 
   private continueCurrentGame(): void {
-    // Transition to GameScene to continue from where we left off
-    this.cameras.main.fadeOut(300, 0, 0, 0);
-    
-    this.cameras.main.once('camerafadeoutcomplete', () => {
-      // Continue the current game by starting the next level
-      if (this.pauseData?.levelData) {
-        this.scene.start('GameScene', {
-          continueFromLevel: true,
-          currentLevel: this.pauseData.levelData.level + 1, // Continue to next level
-          totalScore: this.pauseData.levelData.totalScore
-        });
-      } else {
-        // Fallback to starting a new game if no level data
-        this.scene.start('GameScene');
-      }
-    });
+    // Continue the current game by starting the next level
+    if (this.pauseData?.levelData) {
+      this.transitionToScene('GameScene', {
+        continueFromLevel: true,
+        currentLevel: this.pauseData.levelData.level + 1, // Continue to next level
+        totalScore: this.pauseData.levelData.totalScore
+      });
+    } else {
+      // Fallback to starting a new game if no level data
+      this.transitionToScene('GameScene');
+    }
   }
 
   private openSettings(): void {
-    // Launch SettingsScene without stopping MenuScene (so we can return to it)
-    this.scene.launch('SettingsScene');
+    // Use standardized navigation helper from BaseScene
+    this.goToSettings();
   }
 
   /**
-   * Enable automatic saving of menu state
+   * Override base class method to save menu-specific game state
    */
-  private enableAutoSave(): void {
-    // Save every 5 seconds using Phaser's timer
-    this.time.addEvent({
-      delay: 5000,
-      callback: () => {
-        this.saveCurrentMenuState();
-      },
-      loop: true
-    });
-  }
-
-  /**
-   * Save current menu state
-   */
-  private saveCurrentMenuState(): void {
+  protected saveGameState(): void {
     const state: Omit<PhaserGameState, 'timestamp'> = {
       currentScene: 'MenuScene',
       sceneStack: [], // Will be populated by PhaserStateManager
@@ -605,14 +469,33 @@ export class MenuScene extends Scene {
     phaserStateManager.saveGameState(this.game, state);
   }
 
-  shutdown(): void {
-    // Save state before shutting down
-    this.saveCurrentMenuState();
-    
-    // Unsubscribe language change listener
-    if (this.languageChangeHandler) {
-      offLanguageChange(this.languageChangeHandler);
-      this.languageChangeHandler = undefined;
+  /**
+   * Override base class method to provide menu-specific restore data
+   */
+  protected getSceneDataForRestore(): any {
+    return {
+      isGamePaused: this.isGamePaused,
+      pauseData: this.pauseData,
+      // Add any other menu-specific data that should survive page reload
+    };
+  }
+
+  /**
+   * Override base class method to restore menu-specific data
+   */
+  protected restoreSceneData(data: any): void {
+    if (data.isGamePaused !== undefined) {
+      this.isGamePaused = data.isGamePaused;
     }
+    if (data.pauseData) {
+      this.pauseData = data.pauseData;
+    }
+    console.log(`[MenuScene] Restored menu state:`, { isGamePaused: this.isGamePaused });
+  }
+
+  protected customShutdown(): void {
+    // Save state before shutting down
+    this.saveCurrentState();
+    // BaseScene handles language change cleanup automatically
   }
 } 
