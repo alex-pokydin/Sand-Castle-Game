@@ -414,8 +414,8 @@ export class MenuScene extends BaseScene {
   }
 
   private startGame(): void {
-    // Use BaseScene transition with music fade
-    this.transitionToScene('GameScene');
+    // Use BaseScene transition with music fade and newGame flag
+    this.transitionToScene('GameScene', { newGame: true });
   }
 
   private continueCurrentGame(): void {

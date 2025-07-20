@@ -91,15 +91,6 @@ export class GameScene extends BaseScene {
       }
     }
     
-    // Try to load saved game state first (for development persistence)
-    const savedState = phaserStateManager.loadGameState(this.game);
-    
-    if (savedState && !data?.continueFromLevel) {
-      // Restoring saved game state from development persistence
-      this.restoreGameState(savedState);
-      return;
-    }
-    
     // Handle continuation from level complete scene
     if (data?.continueFromLevel) {
       // Starting fresh GameScene for level
@@ -135,41 +126,64 @@ export class GameScene extends BaseScene {
       this.gameState.isGameActive = true;
       this.input.enabled = true;
     } else {
-      // Reset game state for new game
+      // Check if this is a new game request (from menu)
+      const isNewGameRequest = data?.newGame === true || data?.fromMenu === true;
+      
+      if (isNewGameRequest) {
+        // Force new game - ignore any saved state
+        this.startCompletelyNewGame();
+        return;
+      }
+      
+      // Try to load saved game state (for development persistence)
+      const savedState = phaserStateManager.loadGameState(this.game);
+      
+      if (savedState) {
+        // Restoring saved game state from development persistence
+        this.restoreGameState(savedState);
+        return;
+      }
+      
       // Starting new game - resetting all game state
-      
-      // Clean up existing game objects and physics bodies
-      this.cleanupGameObjects();
-      
-      this.gameState = {
-        currentLevel: 1,
-        score: 0,
-        lives: 3,
-        droppedParts: [],
-        isGameActive: true,
-        isFirstPart: true
-      };
-      this.currentLevelIndex = 0;
-      this.droppedParts = [];
-      this.currentPart = undefined;
-      this.partSpeed = GAME_CONFIG.partSpeed;
-      this.groundViolations = [];
-      this.totalPartsDropped = 0;
-      this.overallPartsPlaced = 0;
-      this.successfulPartsInstalled = 0;
-      this.wrongPartsCurrentLevel = 0;
-      this.totalSuccessfulPlaced = 0;
-      this.rewardedCastleCount = 0;
-      
-      // Reset enhanced scoring system
-      this.comboCount = 0;
-      this.maxCombo = 0;
-      this.perfectPlacements = 0;
-      this.lastPlacementTime = 0;
-      
-      // Reset level completion state
-      this.isLevelCompleting = false;
+      this.startCompletelyNewGame();
     }
+  }
+
+  /**
+   * Start a completely new game, ignoring any saved state
+   */
+  private startCompletelyNewGame(): void {
+    // Clean up existing game objects and physics bodies
+    this.cleanupGameObjects();
+    
+    this.gameState = {
+      currentLevel: 1,
+      score: 0,
+      lives: 3,
+      droppedParts: [],
+      isGameActive: true,
+      isFirstPart: true
+    };
+    this.currentLevelIndex = 0;
+    this.droppedParts = [];
+    this.currentPart = undefined;
+    this.partSpeed = GAME_CONFIG.partSpeed;
+    this.groundViolations = [];
+    this.totalPartsDropped = 0;
+    this.overallPartsPlaced = 0;
+    this.successfulPartsInstalled = 0;
+    this.wrongPartsCurrentLevel = 0;
+    this.totalSuccessfulPlaced = 0;
+    this.rewardedCastleCount = 0;
+    
+    // Reset enhanced scoring system
+    this.comboCount = 0;
+    this.maxCombo = 0;
+    this.perfectPlacements = 0;
+    this.lastPlacementTime = 0;
+    
+    // Reset level completion state
+    this.isLevelCompleting = false;
   }
 
   protected customCreate(): void {
@@ -232,6 +246,10 @@ export class GameScene extends BaseScene {
 
     // Restore dropped parts (will be recreated in create method)
     this.gameState.droppedParts = savedState.droppedParts;
+    
+    // CRITICAL FIX: Reset level completion state when restoring
+    // This prevents the game from being stuck in completion state
+    this.isLevelCompleting = false;
   }
 
   /**
@@ -367,7 +385,7 @@ export class GameScene extends BaseScene {
       currentY,
       'Score: {{score}}',
       {
-        ...TEXT_CONFIGS.SUBTITLE_MEDIUM,
+        ...TEXT_CONFIGS.STATS_SMALL,
         maxWidth: 0.4,
         color: '#F39C12', // Gold color for score
         stroke: '#FFFFFF',
@@ -444,7 +462,7 @@ export class GameScene extends BaseScene {
       smallSpacing * 5, // Move even lower to provide enough clearance
       'Combo: {{count}}x',
       {
-        ...TEXT_CONFIGS.SUBTITLE_MEDIUM,
+        ...TEXT_CONFIGS.STATS_SMALL,
         maxWidth: 0.4,
         color: '#9B59B6', // Purple for combo
         stroke: '#FFFFFF',
@@ -751,14 +769,21 @@ export class GameScene extends BaseScene {
   }
 
   private spawnNextPart(): void {
-    if (!this.gameState.isGameActive || this.isLevelCompleting) return;
+    if (!this.gameState.isGameActive || this.isLevelCompleting) {
+      return;
+    }
 
     const currentLevel = LEVELS[this.currentLevelIndex] || generateLevel(this.currentLevelIndex + 1);
-    if (!currentLevel) return;
+    if (!currentLevel) {
+      return;
+    }
 
     // Smart spawning: determine available part levels based on current castle
     const availableLevels = getAvailablePartLevels(this.droppedParts);
-    if (availableLevels.length === 0) return;
+    
+    if (availableLevels.length === 0) {
+      return;
+    }
 
     // Randomly select a part level from available options
     const partLevel = availableLevels[Math.floor(Math.random() * availableLevels.length)];
@@ -1484,13 +1509,6 @@ export class GameScene extends BaseScene {
     if (data.lastPlacementTime !== undefined) {
       this.lastPlacementTime = data.lastPlacementTime;
     }
-    
-    console.log(`[GameScene] Restored game state:`, { 
-      level: this.gameState.currentLevel, 
-      score: this.gameState.score,
-      combo: this.comboCount,
-      maxCombo: this.maxCombo
-    });
   }
 
   private saveHighScore(): void {
