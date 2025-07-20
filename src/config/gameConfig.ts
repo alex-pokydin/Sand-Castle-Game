@@ -46,35 +46,35 @@ export const LEVELS: Level[] = [
     name: "First Steps",
     targetParts: 2,
     maxAttempts: 3,
-    description: "Learn the basics - place 2 parts to build your first castle!"
+    description: "Level 1 blocks can only be placed on the ground. Place 2 foundation blocks to start your castle!"
   },
   {
     id: 2,
     name: "Level Up",
     targetParts: 3,
     maxAttempts: 3,
-    description: "Master the level system - use 3 parts with strategic placement"
+    description: "Level 2 blocks can only be placed on Level 1 blocks. Build up with 3 blocks and watch your castle grow!"
   },
   {
     id: 3,
     name: "Build Strategy",
     targetParts: 5,
     maxAttempts: 3,
-    description: "Plan your castle - 5 parts require careful logistics"
+    description: "Level 3 blocks go on Level 2 blocks. Plan your logistics carefully - you need 5 blocks for a stable structure!"
   },
   {
     id: 4,
     name: "Logistics Challenge",
     targetParts: 10,
     maxAttempts: 3,
-    description: "Advanced building - manage 10 parts across multiple levels"
+    description: "Level 4 blocks on Level 3 blocks. Manage 10 parts across multiple levels - logistics become crucial!"
   },
   {
     id: 5,
     name: "Master Builder",
     targetParts: 15,
     maxAttempts: 3,
-    description: "Expert challenge - construct a 15-part castle masterpiece"
+    description: "Level 5 blocks on Level 4 blocks. Complete your 15-part castle masterpiece for bonus points! Watch your statistics!"
   }
 ];
 
@@ -84,7 +84,7 @@ export const generateLevel = (levelId: number): Level => ({
   name: `Advanced Level ${levelId - 5}`,
   targetParts: 15 + (levelId - 5) * 5,
   maxAttempts: 3,
-  description: `Endless challenge - build a ${15 + (levelId - 5) * 5}-part castle`
+  description: `Endless challenge - build a {{parts}}-part castle`
 });
 
 // Level-based scoring system

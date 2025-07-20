@@ -215,6 +215,75 @@ export function createCenteredResponsiveText(
 }
 
 /**
+ * Creates centered responsive text from pre-translated text (avoids double translation)
+ */
+export function createCenteredResponsiveTextFromTranslated(
+  scene: Scene,
+  x: number,
+  y: number,
+  translatedText: string,
+  config: ResponsiveTextConfig
+): Phaser.GameObjects.Text {
+  // Default values
+  const {
+    fontSize = 32,
+    minFontSize = 16,
+    maxWidth = 0.9, // Default to 90% of screen width
+    maxHeight = 0.2, // Default to 20% of screen height
+    fontFamily = 'Arial, sans-serif',
+    color = '#FFFFFF',
+    stroke = '#000000',
+    strokeThickness = 2,
+    fontStyle = 'normal',
+    shadow,
+    align = 'center',
+    lineSpacing = 2
+  } = config;
+
+  // Convert percentages to pixels
+  const maxWidthPx = typeof maxWidth === 'number' && maxWidth <= 1 
+    ? scene.scale.width * maxWidth 
+    : maxWidth;
+  const maxHeightPx = typeof maxHeight === 'number' && maxHeight <= 1 
+    ? scene.scale.height * maxHeight 
+    : maxHeight;
+
+  // Calculate responsive font size considering both width and height
+  const finalFontSize = calculateResponsiveFontSize(
+    scene,
+    translatedText,
+    fontSize,
+    minFontSize,
+    maxWidthPx,
+    maxHeightPx,
+    fontFamily,
+    lineSpacing
+  );
+
+  // Create the text object with word wrapping
+  const textObject = scene.add.text(x, y, translatedText, {
+    fontSize: `${finalFontSize}px`,
+    fontFamily,
+    color,
+    stroke,
+    strokeThickness,
+    fontStyle,
+    shadow,
+    align,
+    lineSpacing,
+    wordWrap: { 
+      width: maxWidthPx,
+      useAdvancedWrap: true
+    }
+  });
+
+  // Set origin to center
+  textObject.setOrigin(0.5);
+  
+  return textObject;
+}
+
+/**
  * Calculates dynamic spacing based on text height and screen size
  */
 export function calculateDynamicSpacing(

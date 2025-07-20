@@ -9,7 +9,7 @@ import { phaserStateManager, PhaserGameState } from '@/utils/PhaserStateManager'
 import { BaseScene } from '@/scenes/BaseScene';
 import { 
   createResponsiveText, 
-  createCenteredResponsiveText,
+  createCenteredResponsiveTextFromTranslated,
   calculateDynamicSpacing,
   TEXT_CONFIGS 
 } from '@/utils/TextUtils';
@@ -704,7 +704,7 @@ export class GameScene extends BaseScene {
     this.visualEffects.createDestructionEffect(x, y, COLORS.RED);
 
     // Create enhanced penalty text with responsive design
-    this.penaltyText = createCenteredResponsiveText(
+    this.penaltyText = createCenteredResponsiveTextFromTranslated(
       this,
       x,
       y,
@@ -956,11 +956,11 @@ export class GameScene extends BaseScene {
   private showComboBreakFeedback(brokenCombo: number): void {
     if (brokenCombo < 2) return; // Only show for combos of 2+
 
-    const comboBreakText = createCenteredResponsiveText(
+    const comboBreakText = createCenteredResponsiveTextFromTranslated(
       this,
       this.scale.width / 2,
       this.scale.height / 2 + 100,
-      `Combo Broken! (${brokenCombo}x)`,
+      tSync('Combo Broken! ({{count}}x)', { count: brokenCombo }),
       {
         ...TEXT_CONFIGS.STATS_MEDIUM,
         maxWidth: 0.6,
@@ -1033,11 +1033,14 @@ export class GameScene extends BaseScene {
     const y = (castleY ? castleY - 100 : this.scale.height / 4);
 
     // Create celebration text
-    const celebrationText = createCenteredResponsiveText(
+    const celebrationText = createCenteredResponsiveTextFromTranslated(
       this,
       x,
       y,
-      `🏰 CASTLE COMPLETE! 🏰\n${partsCount} parts cleared\n+${bonus} BONUS POINTS!`,
+      tSync('🏰 CASTLE COMPLETE! 🏰\n{{parts}} parts cleared\n+{{bonus}} BONUS POINTS!', { 
+        parts: partsCount, 
+        bonus: bonus 
+      }),
       {
         ...TEXT_CONFIGS.TITLE_MEDIUM,
         maxWidth: 0.8,
@@ -1339,12 +1342,20 @@ export class GameScene extends BaseScene {
     let instructionText = tSync('Tap to drop parts!');
     
     // Add level description if available
-    const currentLevel = LEVELS[this.currentLevelIndex];
+    const currentLevel = LEVELS[this.currentLevelIndex] || generateLevel(this.currentLevelIndex + 1);
     if (currentLevel && currentLevel.description) {
-      instructionText += '\n' + tSync(currentLevel.description);
+      // For dynamic levels, pass variables for translation
+      if (this.currentLevelIndex >= 5) {
+        const targetParts = 15 + (this.currentLevelIndex - 4) * 5;
+        instructionText += '\n' + tSync(currentLevel.description, {
+          parts: targetParts
+        });
+      } else {
+        instructionText += '\n' + tSync(currentLevel.description);
+      }
     }
     
-    const text = createCenteredResponsiveText(
+    const text = createCenteredResponsiveTextFromTranslated(
       this,
       this.scale.width / 2,
       this.scale.height / 1.5,
@@ -1372,9 +1383,17 @@ export class GameScene extends BaseScene {
     let instructionText = tSync('Tap to drop parts!');
     
     // Add level description if available
-    const currentLevel = LEVELS[this.currentLevelIndex];
+    const currentLevel = LEVELS[this.currentLevelIndex] || generateLevel(this.currentLevelIndex + 1);
     if (currentLevel && currentLevel.description) {
-      instructionText += '\n' + tSync(currentLevel.description);
+      // For dynamic levels, pass variables for translation
+      if (this.currentLevelIndex >= 5) {
+        const targetParts = 15 + (this.currentLevelIndex - 4) * 5;
+        instructionText += '\n' + tSync(currentLevel.description, {
+          parts: targetParts
+        });
+      } else {
+        instructionText += '\n' + tSync(currentLevel.description);
+      }
     }
     
     this.instructionText.setText(instructionText);
