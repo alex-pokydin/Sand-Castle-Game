@@ -23,5 +23,6 @@
       "@/types/*": ["types/*"]
     }
   },
-  "include": ["src"]
+  "include": ["src"],
+  "types": ["vite/client"]
 } 

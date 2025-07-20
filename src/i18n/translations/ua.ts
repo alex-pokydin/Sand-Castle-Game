@@ -153,7 +153,13 @@ export const translations: Record<string, string> = {
   "Mute": "Вимкнути Звук",
   "Unmute": "Увімкнути Звук",
   "Large Text": "Великий Текст",
-  "High Contrast": "Високий Контраст"
+  "High Contrast": "Високий Контраст",
+  
+  // Audio Settings
+  "Audio Settings": "Налаштування Звуку",
+  "Background Music": "Фонова Музика",
+  "Music Volume": "Гучність Музики",
+  "Sound Effects": "Звукові Ефекти"
 };
 
 export default translations; 

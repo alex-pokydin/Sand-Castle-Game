@@ -3,7 +3,8 @@ import { CastlePart } from '@/objects/CastlePart';
 import { GAME_CONFIG, LEVELS, COLORS, PHYSICS_CONFIG, SCORING_CONFIG, generateLevel } from '@/config/gameConfig';
 import { GameState, GroundViolation } from '@/types/Game';
 import { StabilityManager } from '@/objects/StabilityManager';
-import { AudioManager } from '@/utils/AudioManager';
+import { EnhancedAudioManager } from '@/utils/EnhancedAudioManager';
+import { VisualEffects } from '@/utils/VisualEffects';
 import { getAvailablePartLevels, getPartWidth, getPartHeight } from '@/utils/PartUtils';
 import { tSync, initI18n, onLanguageChange, offLanguageChange } from '@/i18n';
 import { supportsVibration } from '@/utils/DeviceUtils';
@@ -22,7 +23,8 @@ export class GameScene extends Scene {
   private penaltyText?: Phaser.GameObjects.Text;
   private currentLevelIndex: number = 0;
   private stabilityManager: StabilityManager;
-  private audioManager: AudioManager;
+  private audioManager: EnhancedAudioManager;
+  private visualEffects: VisualEffects;
   private groundViolations: GroundViolation[] = [];
   private totalPartsDropped: number = 0; // Track total parts dropped including destroyed ones
   private groundSprite?: Phaser.GameObjects.Rectangle; // Reference to ground sprite for collision detection
@@ -42,7 +44,8 @@ export class GameScene extends Scene {
   constructor() {
     super({ key: 'GameScene' });
     this.stabilityManager = new StabilityManager();
-    this.audioManager = AudioManager.getInstance();
+    this.audioManager = EnhancedAudioManager.getInstance();
+    this.visualEffects = new VisualEffects(this);
 
     this.gameState = {
       currentLevel: 1,
@@ -574,7 +577,7 @@ export class GameScene extends Scene {
 
       if (bodyA instanceof CastlePart || bodyB instanceof CastlePart) {
         // Play soft collision sound for part-to-part or part-to-ground contact
-        this.audioManager.playDropSound();
+        this.audioManager.playSound('drop');
 
         // Handle ground collision if detected
         if (isGroundCollision) {
@@ -658,7 +661,7 @@ export class GameScene extends Scene {
     this.showPenaltyFeedback(penalty);
 
     // Play penalty sound
-    this.audioManager.playCollapseSound();
+    this.audioManager.playSound('collapse');
 
     // Remove the part from dropped parts array
     const partIndex = this.droppedParts.indexOf(part);
@@ -722,27 +725,8 @@ export class GameScene extends Scene {
   }
 
   private createDestructionParticles(x: number, y: number): void {
-    // Create red destruction particles
-    for (let i = 0; i < 12; i++) {
-      const particle = this.add.circle(
-        x + (Math.random() - 0.5) * 40,
-        y + (Math.random() - 0.5) * 40,
-        Math.random() * 3 + 1,
-        COLORS.RED
-      );
-
-      this.tweens.add({
-        targets: particle,
-        x: particle.x + (Math.random() - 0.5) * 100,
-        y: particle.y - Math.random() * 60 - 20,
-        alpha: 0,
-        scaleX: 0,
-        scaleY: 0,
-        duration: 1000,
-        ease: 'Power2.easeOut',
-        onComplete: () => particle.destroy()
-      });
-    }
+    // Use enhanced visual effects
+    this.visualEffects.createDestructionEffect(x, y, COLORS.RED);
   }
 
   private onCollisionEnd(_event: Phaser.Physics.Matter.Events.CollisionEndEvent): void {
@@ -934,7 +918,7 @@ export class GameScene extends Scene {
     this.showPenaltyFeedback(SCORING_CONFIG.wrongPlacementPenalty, "Wrong Level!");
 
     // Play penalty sound
-    this.audioManager.playCollapseSound();
+    this.audioManager.playSound('collapse');
 
     // Remove part from dropped parts array
     const partIndex = this.droppedParts.indexOf(part);
@@ -971,7 +955,7 @@ export class GameScene extends Scene {
     this.showSuccessFeedback(totalBonus, `Level ${part.getPartLevel()}!`);
 
     // Play success sound
-    this.audioManager.playDropSound();
+    this.audioManager.playSound('place-good');
 
     // Update counters
     this.totalSuccessfulPlaced++;
@@ -1058,7 +1042,7 @@ export class GameScene extends Scene {
     this.gameState.isGameActive = false;
 
     // Play collapse sound
-    this.audioManager.playCollapseSound();
+    this.audioManager.playSound('collapse');
 
     // Show collapse message
     const collapseText = this.add.text(
@@ -1127,7 +1111,7 @@ export class GameScene extends Scene {
 
   private completeLevel(): void {
     // Play level complete sound
-    this.audioManager.playLevelCompleteSound();
+    this.audioManager.playSound('level-complete');
 
     // Award bonus for completing the level
     const levelBonus = 100;

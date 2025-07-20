@@ -2,7 +2,7 @@ import { Scene } from 'phaser';
 import { CastlePartData, PartLevel, PlacementResult } from '@/types/Game';
 import { COLORS, PHYSICS_CONFIG, getPartColor, PLACEMENT_CONFIG } from '@/config/gameConfig';
 import { StabilityManager } from '@/objects/StabilityManager';
-import { AudioManager } from '@/utils/AudioManager';
+import { EnhancedAudioManager } from '@/utils/EnhancedAudioManager';
 
 export class CastlePart extends Phaser.GameObjects.Rectangle {
   private partData: CastlePartData;
@@ -10,7 +10,7 @@ export class CastlePart extends Phaser.GameObjects.Rectangle {
   private isDropped: boolean = false;
   private shadow?: Phaser.GameObjects.Rectangle;
   private stabilityManager: StabilityManager;
-  private audioManager: AudioManager;
+  private audioManager: EnhancedAudioManager;
   private stabilityGlow?: Phaser.GameObjects.Arc;
   private lastStabilityLevel: 'stable' | 'warning' | 'unstable' = 'stable';
   private matterBody?: MatterJS.BodyType;
@@ -24,7 +24,7 @@ export class CastlePart extends Phaser.GameObjects.Rectangle {
     
     this.partLevel = partLevel;
     this.stabilityManager = new StabilityManager();
-    this.audioManager = AudioManager.getInstance();
+    this.audioManager = EnhancedAudioManager.getInstance();
     
     this.partData = {
       id: `part_${Date.now()}_${Math.random()}`,
@@ -323,7 +323,7 @@ export class CastlePart extends Phaser.GameObjects.Rectangle {
       this.isDropped = true;
       
       // Play drop sound
-      this.audioManager.playDropSound();
+      this.audioManager.playSound('drop');
       
       // Remove shadow when part is dropped
       if (this.shadow) {
@@ -400,13 +400,13 @@ export class CastlePart extends Phaser.GameObjects.Rectangle {
     
     if (currentLevel === 'stable' && previousLevel !== 'stable') {
       // Successful stabilization
-      this.audioManager.playPlacementSound('stable');
+      this.audioManager.playSound('place-perfect');
     } else if (currentLevel === 'warning' && previousLevel === 'unstable') {
       // Improving from unstable to warning
-      this.audioManager.playPlacementSound('warning');
+      this.audioManager.playSound('place-good');
     } else if (currentLevel === 'unstable' && previousLevel !== 'unstable') {
       // Becoming unstable - warning sound
-      this.audioManager.playPlacementSound('unstable');
+      this.audioManager.playSound('wobble');
     }
     
     // Special case: if transitioning from unstable to stable (rare but possible)
@@ -414,7 +414,7 @@ export class CastlePart extends Phaser.GameObjects.Rectangle {
       // Play extra success sound for recovery
       if (this.scene && this.scene.time) {
         this.scene.time.delayedCall(300, () => {
-          this.audioManager.playPlacementSound('stable');
+          this.audioManager.playSound('place-perfect');
         });
       }
     }

@@ -428,17 +428,14 @@ interface GameSession {
 ### Polish & Enhancement: "Make It Shine"
 - [ ] Visual effects (particles, glows, smooth animations)
 - [ ] Enhanced audio (background music, better sound effects)
-- [ ] More castle part varieties and level complexity
-- [ ] Performance optimization for older devices
+- [ ] More castle part varieties 
 - [ ] PWA features for mobile installation
 - [ ] **Milestone**: Polished, shareable game experience
 
 ### Optional Extensions: "Follow the Fun"
 - [ ] Firebase integration (leaderboards, cloud saves)
-- [ ] Additional game modes or mechanics
 - [ ] Achievement system
 - [ ] Social features or sharing
-- [ ] Advanced levels based on player feedback
 - [ ] **Milestone**: Enhanced features that emerged organically
 
 ## 🎯 Success Metrics

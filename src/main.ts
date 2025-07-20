@@ -5,6 +5,14 @@ import { GameOverScene } from '@/scenes/GameOverScene';
 import { LevelCompleteScene } from '@/scenes/LevelCompleteScene';
 import { SettingsScene } from '@/scenes/SettingsScene';
 import { GAME_CONFIG, PHYSICS_CONFIG } from '@/config/gameConfig';
+import { PWAManager } from '@/utils/PWAManager';
+import { EnhancedAudioManager } from '@/utils/EnhancedAudioManager';
+
+// Configure Howler.js for better audio management
+import { Howler } from 'howler';
+Howler.volume(0.7);
+Howler.html5PoolSize = 10; // Limit HTML5 audio pool size
+Howler.autoUnlock = true; // Auto-unlock audio on user interaction
 
 // Phaser game configuration
 const config: Phaser.Types.Core.GameConfig = {
@@ -38,6 +46,10 @@ const config: Phaser.Types.Core.GameConfig = {
 
 // Initialize the game
 const game = new Game(config);
+
+// Initialize PWA and Enhanced Audio systems
+const pwaManager = PWAManager.getInstance();
+const enhancedAudioManager = EnhancedAudioManager.getInstance();
 
 // Check for saved state and restore scene if available
 import { phaserStateManager } from '@/utils/PhaserStateManager';
@@ -76,6 +88,15 @@ game.events.once('ready', () => {
   
   // Set up immediate state saving on scene changes
   setupImmediateStateSaving(game);
+  
+  // Setup PWA connectivity listeners
+  pwaManager.setupConnectivityListeners();
+  
+  // Load enhanced audio
+  enhancedAudioManager.loadBasicSounds();
+  
+  // Start background music
+  enhancedAudioManager.startBackgroundMusic();
 });
 
 /**
@@ -120,6 +141,37 @@ import { debugPhaserState } from '@/utils/PhaserStateManager';
 (window as any).testSystemLanguageDetection = testSystemLanguageDetection;
 (window as any).checkMissingTranslations = checkMissingTranslations;
 (window as any).debugPhaserState = debugPhaserState;
+
+// Add PWA and Audio debug functions
+(window as any).debugPWA = () => {
+  console.log('📱 PWA Status:', pwaManager.getPWAStatus());
+};
+
+(window as any).debugAudio = () => {
+  console.log('🔊 Audio Status:', {
+    volume: enhancedAudioManager.getVolume(),
+    musicVolume: enhancedAudioManager.getMusicVolume(),
+    isMuted: enhancedAudioManager.isMutedState()
+  });
+};
+
+(window as any).testAudio = () => {
+  console.log('🎵 Testing audio sounds...');
+  enhancedAudioManager.playSound('drop');
+  setTimeout(() => enhancedAudioManager.playSound('place-good'), 500);
+  setTimeout(() => enhancedAudioManager.playSound('place-perfect'), 1000);
+  setTimeout(() => enhancedAudioManager.playSound('wobble'), 1500);
+  setTimeout(() => enhancedAudioManager.playSound('collapse'), 2000);
+  setTimeout(() => enhancedAudioManager.playSound('level-complete'), 2500);
+};
+
+(window as any).installApp = () => {
+  pwaManager.installApp();
+};
+
+(window as any).updateApp = () => {
+  pwaManager.updateApp();
+};
 
 // Add additional debug function to check current state
 (window as any).checkCurrentState = () => {
