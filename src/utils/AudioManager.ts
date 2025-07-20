@@ -67,6 +67,11 @@ export class AudioManager {
   public createSounds(): void {
     if (!this.scene) return;
 
+    // Prevent creating duplicate sounds - clean up existing ones first
+    if (this.isInitialized) {
+      this.cleanupSounds();
+    }
+
     // Create sound effects with Phaser's built-in pooling
     this.sounds.set('drop', this.scene.sound.add('drop', { volume: 0.6 }));
     this.sounds.set('place-good', this.scene.sound.add('place-good', { volume: 0.8 }));
@@ -75,12 +80,14 @@ export class AudioManager {
     this.sounds.set('collapse', this.scene.sound.add('collapse', { volume: 0.7 }));
     this.sounds.set('level-complete', this.scene.sound.add('level-complete', { volume: 0.8 }));
 
-    // Create background music (default)
-    this.backgroundMusic = this.scene.sound.add('background-music', { 
-      volume: this.currentSettings.musicVolume, 
-      loop: true 
-    });
-    this.currentMusicKey = 'background-music';
+    // Create background music (default) only if none exists
+    if (!this.backgroundMusic) {
+      this.backgroundMusic = this.scene.sound.add('background-music', { 
+        volume: this.currentSettings.musicVolume, 
+        loop: true 
+      });
+      this.currentMusicKey = 'background-music';
+    }
 
     // Apply current settings
     this.applyCurrentSettings();
@@ -217,12 +224,16 @@ export class AudioManager {
   private switchBackgroundMusic(musicKey: string): void {
     if (!this.scene) return;
 
-    // Stop current music if playing
+    // Properly destroy current music if it exists
     if (this.backgroundMusic) {
+      console.log(`[AudioManager] Destroying old music: ${this.currentMusicKey}`);
       this.backgroundMusic.stop();
+      this.backgroundMusic.destroy(); // ← Fix: Properly destroy the old music instance
+      this.backgroundMusic = undefined;
     }
 
     // Create new background music
+    console.log(`[AudioManager] Creating new music: ${musicKey}`);
     this.backgroundMusic = this.scene.sound.add(musicKey, { 
       volume: this.currentSettings.musicVolume, 
       loop: true 
@@ -278,6 +289,9 @@ export class AudioManager {
     this.stopMusicFade();
     if (this.backgroundMusic) {
       this.backgroundMusic.stop();
+      this.backgroundMusic.destroy();
+      this.backgroundMusic = undefined;
+      this.currentMusicKey = undefined;
     }
   }
 
@@ -310,6 +324,8 @@ export class AudioManager {
     this.stopMusicFade();
     if (this.backgroundMusic) {
       this.backgroundMusic.stop();
+      this.backgroundMusic.destroy(); // ← Fix: Properly destroy music instance
+      this.backgroundMusic = undefined;
     }
     this.currentMusicKey = undefined;
   }
@@ -340,6 +356,29 @@ export class AudioManager {
       this.musicFadeTween.remove();
       this.musicFadeTween = undefined;
     }
+  }
+
+  /**
+   * Clean up existing sound instances to prevent duplicates
+   */
+  private cleanupSounds(): void {
+    console.log(`[AudioManager] Cleaning up existing sounds (${this.sounds.size} effects, music: ${this.currentMusicKey || 'none'})`);
+    
+    // Destroy existing sound effects
+    this.sounds.forEach(sound => {
+      if (sound) {
+        sound.destroy();
+      }
+    });
+    this.sounds.clear();
+
+    // Destroy existing background music
+    if (this.backgroundMusic) {
+      this.backgroundMusic.stop();
+      this.backgroundMusic.destroy();
+      this.backgroundMusic = undefined;
+    }
+    this.currentMusicKey = undefined;
   }
 
   /**
@@ -487,8 +526,7 @@ export class AudioManager {
    */
   public destroy(): void {
     this.stopAll();
-    this.sounds.clear();
-    this.backgroundMusic = undefined;
+    this.cleanupSounds(); // Use the comprehensive cleanup method
     this.scene = undefined;
     this.isInitialized = false;
   }

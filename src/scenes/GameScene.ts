@@ -1,17 +1,14 @@
-import { Scene } from 'phaser';
 import { CastlePart } from '@/objects/CastlePart';
 import { GAME_CONFIG, LEVELS, COLORS, PHYSICS_CONFIG, SCORING_CONFIG, generateLevel } from '@/config/gameConfig';
 import { GameState, GroundViolation } from '@/types/Game';
 import { StabilityManager } from '@/objects/StabilityManager';
-import { AudioManager } from '@/utils/AudioManager';
-import { SettingsManager } from '@/utils/SettingsManager';
 import { VisualEffects } from '@/utils/VisualEffects';
 import { getAvailablePartLevels, getPartWidth, getPartHeight } from '@/utils/PartUtils';
-import { tSync, initI18n, onLanguageChange, offLanguageChange } from '@/i18n';
-import { supportsVibration } from '@/utils/DeviceUtils';
+import { tSync } from '@/i18n';
 import { phaserStateManager, PhaserGameState } from '@/utils/PhaserStateManager';
+import { BaseScene } from '@/scenes/BaseScene';
 
-export class GameScene extends Scene {
+export class GameScene extends BaseScene {
   private currentPart?: CastlePart;
   private droppedParts: CastlePart[] = [];
   private gameState: GameState;
@@ -24,8 +21,6 @@ export class GameScene extends Scene {
   private penaltyText?: Phaser.GameObjects.Text;
   private currentLevelIndex: number = 0;
   private stabilityManager: StabilityManager;
-  private audioManager: AudioManager;
-  private settingsManager: SettingsManager;
   private visualEffects: VisualEffects;
   private groundViolations: GroundViolation[] = [];
   private totalPartsDropped: number = 0; // Track total parts dropped including destroyed ones
@@ -40,14 +35,13 @@ export class GameScene extends Scene {
   private totalSuccessText?: Phaser.GameObjects.Text;
   private rewardCountText?: Phaser.GameObjects.Text;
   private wrongLevelText?: Phaser.GameObjects.Text;
-  private languageChangeHandler?: (lang: any) => void;
-
 
   constructor() {
-    super({ key: 'GameScene' });
+    super('GameScene');
+    // Set calm beach ambient music for gameplay
+    this.setBackgroundMusic('background-music');
+    
     this.stabilityManager = new StabilityManager();
-    this.audioManager = AudioManager.getInstance();
-    this.settingsManager = SettingsManager.getInstance();
     this.visualEffects = new VisualEffects(this);
 
     this.gameState = {
@@ -60,6 +54,15 @@ export class GameScene extends Scene {
     };
   }
 
+  // Implementation of BaseScene abstract methods
+  protected async customPreload(): Promise<void> {
+    // No additional preload logic needed - BaseScene handles audio and i18n
+  }
+
+  protected onLanguageChanged(): void {
+    this.updateTexts();
+  }
+
   init(data?: any): void {
     // Handle scene restoration from saved state
     if (data?.restoreFromState) {
@@ -67,9 +70,6 @@ export class GameScene extends Scene {
       const savedState = phaserStateManager.loadGameState(this.game);
       if (savedState) {
         this.restoreGameState(savedState);
-        
-        // Note: With the new approach, GameScene and LevelCompleteScene are never active simultaneously
-        
         return;
       }
     }
@@ -78,7 +78,7 @@ export class GameScene extends Scene {
     const savedState = phaserStateManager.loadGameState(this.game);
     
     if (savedState && !data?.continueFromLevel) {
-              // Restoring saved game state from development persistence
+      // Restoring saved game state from development persistence
       this.restoreGameState(savedState);
       return;
     }
@@ -141,46 +141,14 @@ export class GameScene extends Scene {
     }
   }
 
-  preload(): void {
-    // Initialize audio manager with this scene
-    this.audioManager.init(this);
-    
-    // Load audio assets
-    this.audioManager.loadSounds();
-  }
-
-  async create(): Promise<void> {
-    // GameScene create() called
-    // Initialize i18n system
-    await initI18n();
-
-    // Subscribe to language changes to update UI
-    this.languageChangeHandler = () => {
-      // Only update if scene is active to avoid calling on destroyed objects
-      if (this.scene.isActive()) {
-        this.updateTexts();
-      }
-    };
-    onLanguageChange(this.languageChangeHandler);
-
-    // Create audio objects after loading
-    this.audioManager.createSounds();
-    
-    // Load and apply saved audio settings
-    const savedSettings = this.settingsManager.loadAudioSettings();
-    this.settingsManager.applySettingsToAudioManager(this.audioManager, savedSettings);
-
+  protected customCreate(): void {
     // Setup physics first with proper configuration
     this.setupPhysics();
 
     this.createBackground();
     this.createUI();
     this.setupInput();
-    this.setupMobileOptimizations();
     this.updateUI(); // Ensure UI reflects current game state
-    
-    // Enable auto-save for development persistence
-    this.enableAutoSave();
     
     // Setup debug functions
     this.setupDebugFunctions();
@@ -196,7 +164,7 @@ export class GameScene extends Scene {
       this.spawnNextPart();
     } else {
       // State was restored, but we still need a current part to move
-              // Game state restored, spawning new current part
+      // Game state restored, spawning new current part
       this.spawnNextPart();
     }
   }
@@ -205,14 +173,11 @@ export class GameScene extends Scene {
    * Restore complete game state from saved data
    */
   private restoreGameState(savedState: PhaserGameState): void {
-    // Restoring game state
-
     // Restore core game state
     this.gameState = savedState.gameState;
     
     // Ensure game is active when restoring (user wants to continue playing)
     this.gameState.isGameActive = true;
-    // Set game to active for restoration
     
     this.currentLevelIndex = savedState.currentLevelIndex;
     this.partSpeed = savedState.partSpeed;
@@ -231,8 +196,6 @@ export class GameScene extends Scene {
 
     // Restore dropped parts (will be recreated in create method)
     this.gameState.droppedParts = savedState.droppedParts;
-    
-    // Game state restored successfully
   }
 
   /**
@@ -243,8 +206,6 @@ export class GameScene extends Scene {
       return;
     }
 
-    // Recreating dropped parts from saved state
-    
     this.gameState.droppedParts.forEach(partData => {
       const part = new CastlePart(
         this,
@@ -261,71 +222,6 @@ export class GameScene extends Scene {
       // Add to dropped parts array
       this.droppedParts.push(part);
     });
-    
-    // Recreated dropped parts
-  }
-
-  /**
-   * Enable automatic saving of game state
-   */
-  private enableAutoSave(): void {
-    // Save every 5 seconds using Phaser's timer
-    this.time.addEvent({
-      delay: 5000,
-      callback: () => {
-        this.saveCurrentState();
-      },
-      loop: true
-    });
-    
-    // Also save on important game events
-    this.events.on('partDropped', () => {
-      this.saveCurrentState();
-    });
-    
-    this.events.on('levelComplete', () => {
-      this.saveCurrentState();
-    });
-    
-    this.events.on('gameOver', () => {
-      this.saveCurrentState();
-    });
-  }
-
-  /**
-   * Save current state using Phaser's registry
-   */
-  private saveCurrentState(): void {
-    const state: Omit<PhaserGameState, 'timestamp'> = {
-      currentScene: 'GameScene',
-      sceneStack: [], // Will be populated by PhaserStateManager
-      activeScenes: [], // Will be populated by PhaserStateManager
-      gameState: { ...this.gameState },
-      currentLevelIndex: this.currentLevelIndex,
-      droppedParts: this.droppedParts.map(part => part.getPartData()),
-      groundViolations: this.groundViolations,
-      totalPartsDropped: this.totalPartsDropped,
-      overallPartsPlaced: this.overallPartsPlaced,
-      successfulPartsInstalled: this.successfulPartsInstalled,
-      wrongPartsCurrentLevel: this.wrongPartsCurrentLevel,
-      totalSuccessfulPlaced: this.totalSuccessfulPlaced,
-      rewardedCastleCount: this.rewardedCastleCount,
-      partSpeed: this.partSpeed,
-      direction: this.direction
-    };
-
-    phaserStateManager.saveGameState(this.game, state);
-  }
-
-  shutdown(): void {
-    // Save state before shutting down
-    this.saveCurrentState();
-    
-    // Unsubscribe language change listener
-    if (this.languageChangeHandler) {
-      offLanguageChange(this.languageChangeHandler);
-      this.languageChangeHandler = undefined;
-    }
   }
 
   /**
@@ -346,8 +242,6 @@ export class GameScene extends Scene {
   }
 
   private cleanupGameObjects(): void {
-    // Cleaning up existing game objects and physics bodies
-    
     // Clean up current part
     if (this.currentPart) {
       this.currentPart.destroy();
@@ -373,8 +267,6 @@ export class GameScene extends Scene {
     
     // Clear any existing tweens
     this.tweens.killAll();
-    
-    // Game objects cleanup completed
   }
 
   private createBackground(): void {
@@ -459,43 +351,12 @@ export class GameScene extends Scene {
     );
     this.instructionText.setOrigin(0.5);
 
-    // Add a pause button in top-right corner
-    this.createPauseButton();
-  }
-
-  private createPauseButton(): void {
-    const pauseButton = this.add.container(this.scale.width - 60, 40);
-
-    // Button background
-    const bg = this.add.circle(0, 0, 25, 0x3498DB);
-    bg.setStrokeStyle(3, 0xFFFFFF);
-
-    // Pause icon (two vertical rectangles)
-    const pauseIcon1 = this.add.rectangle(-6, 0, 4, 20, 0xFFFFFF);
-    const pauseIcon2 = this.add.rectangle(6, 0, 4, 20, 0xFFFFFF);
-
-    pauseButton.add([bg, pauseIcon1, pauseIcon2]);
-    pauseButton.setSize(50, 50);
-    pauseButton.setInteractive();
-
-    // Pause functionality
-    pauseButton.on('pointerdown', () => {
-      // Pause button clicked - pausing GameScene and launching MenuScene
-      // Pause and hide the GameScene
+    // Add a pause button in top-right corner using BaseScene helper
+    this.createPauseButton(() => {
       this.scene.pause();
       this.input.enabled = false; // Disable input when pausing
       this.cameras.main.setVisible(false);
-              // GameScene paused, launching MenuScene with isPaused: true
       this.scene.launch('MenuScene', { isPaused: true }); // Pass pause context to MenuScene
-    });
-
-    // Hover effects
-    pauseButton.on('pointerover', () => {
-      pauseButton.setScale(1.1);
-    });
-
-    pauseButton.on('pointerout', () => {
-      pauseButton.setScale(1);
     });
   }
 
@@ -749,31 +610,24 @@ export class GameScene extends Scene {
   }
 
   private spawnNextPart(): void {
-    // spawnNextPart called
     if (!this.gameState.isGameActive) {
-              // Cannot spawn part - game is not active
       return;
     }
 
     const currentLevel = LEVELS[this.currentLevelIndex] || generateLevel(this.currentLevelIndex + 1);
-    // spawnNextPart - currentLevel
     if (!currentLevel) {
-              // Cannot spawn part - no level data
       return;
     }
 
     // Smart spawning: determine available part levels based on current castle (now via PartUtils)
     const availableLevels = getAvailablePartLevels(this.droppedParts);
-    // Available part levels
 
     if (availableLevels.length === 0) {
-              // Cannot spawn part - no available part levels
       return;
     }
 
     // Randomly select a part level from available options
     const partLevel = availableLevels[Math.floor(Math.random() * availableLevels.length)];
-    // Selected part level
 
     // Create new part at top of screen
     const partWidth = getPartWidth(partLevel);
@@ -788,19 +642,9 @@ export class GameScene extends Scene {
       partLevel
     );
 
-    // Part spawned successfully
-
     // Reset movement direction randomly
     this.direction = Math.random() > 0.5 ? 1 : -1;
   }
-
-  // NOTE: `getAvailablePartLevels` has been extracted to PartUtils.
-
-  // NOTE: `getCastleState` has been extracted to PartUtils.
-
-  // NOTE: `getPartWidth` moved to PartUtils.
-
-  // NOTE: `getPartHeight` moved to PartUtils.
 
   private dropCurrentPart(): void {
     if (!this.currentPart || !this.gameState.isGameActive) return;
@@ -898,8 +742,6 @@ export class GameScene extends Scene {
       return p !== part && p.body && p.body.position; // Only include parts with valid physics
     });
 
-
-
     // Validate placement
     const placementResult = part.validatePlacement(otherParts);
 
@@ -917,15 +759,6 @@ export class GameScene extends Scene {
    * Handle wrong part placement
    */
   private handleWrongPlacement(part: CastlePart, _placementResult: any): void {
-    // Record wrong placement event (for future analytics)
-    // const wrongPlacement: WrongPlacementEvent = {
-    //   partId: part.getPartData().id,
-    //   partLevel: part.getPartLevel(),
-    //   attemptedTargetLevel: placementResult.targetLevel,
-    //   penaltyApplied: SCORING_CONFIG.wrongPlacementPenalty,
-    //   timestamp: Date.now()
-    // };
-
     // Apply score penalty
     this.gameState.score = Math.max(0, this.gameState.score - SCORING_CONFIG.wrongPlacementPenalty);
 
@@ -1110,17 +943,13 @@ export class GameScene extends Scene {
     // Save high score
     this.saveHighScore();
 
-    // Transition to GameOverScene with game data
-    this.cameras.main.fadeOut(500, 0, 0, 0);
-
-    this.cameras.main.once('camerafadeoutcomplete', () => {
-      this.scene.start('GameOverScene', {
-        score: this.gameState.score,
-        level: this.gameState.currentLevel,
-        isVictory: false,
-        castlesBuilt: this.rewardedCastleCount,
-        perfectDrops: 0 // Can be enhanced later to track perfect drops
-      });
+    // Use BaseScene transition helper
+    this.transitionToScene('GameOverScene', {
+      score: this.gameState.score,
+      level: this.gameState.currentLevel,
+      isVictory: false,
+      castlesBuilt: this.rewardedCastleCount,
+      perfectDrops: 0 // Can be enhanced later to track perfect drops
     });
   }
 
@@ -1142,23 +971,15 @@ export class GameScene extends Scene {
   private showLevelCompleteScreen(): void {
     this.gameState.isGameActive = false;
 
-    // Stop this scene and start LevelCompleteScene (cleaner approach)
-    this.cameras.main.fadeOut(500, 0, 0, 0);
-
-    this.cameras.main.once('camerafadeoutcomplete', () => {
-      // Stop GameScene before starting LevelCompleteScene to prevent background execution
-      this.scene.stop();
-      this.scene.start('LevelCompleteScene', {
-        level: this.gameState.currentLevel,
-        score: 100, // Level completion bonus
-        partsPlaced: this.successfulPartsInstalled,
-        perfectDrops: 0, // Can be enhanced later to track perfect drops
-        totalScore: this.gameState.score
-      });
+    // Use BaseScene transition helper
+    this.transitionToScene('LevelCompleteScene', {
+      level: this.gameState.currentLevel,
+      score: 100, // Level completion bonus
+      partsPlaced: this.successfulPartsInstalled,
+      perfectDrops: 0, // Can be enhanced later to track perfect drops
+      totalScore: this.gameState.score
     });
   }
-
-
 
   private updateUI(): void {
     if (this.levelText) {
@@ -1202,15 +1023,6 @@ export class GameScene extends Scene {
           this.currentPart.x >= this.scale.width - this.currentPart.width / 2) {
         this.direction *= -1;
       }
-    } else {
-      // Debug logging for why part is not moving
-      if (!this.currentPart) {
-        // No current part to move
-      } else if (!this.currentPart.active) {
-        // Current part is not active
-      } else if (!this.gameState.isGameActive) {
-        // Game is not active
-      }
     }
 
     // Check stability of dropped parts (ground violations now handled by collision detection)
@@ -1218,47 +1030,6 @@ export class GameScene extends Scene {
       if (part && part.active && part.body) {
         part.checkStability();
       }
-    });
-  }
-
-  private setupMobileOptimizations(): void {
-    // Add haptic feedback for mobile devices
-    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-      const isTouchInput = (pointer as any).pointerType === 'touch' || (pointer.event as any)?.pointerType === 'touch';
-
-      if (isTouchInput && supportsVibration()) {
-        navigator.vibrate(50);
-      }
-
-      if (this.sound.locked) {
-        this.sound.unlock();
-      } else {
-        const ctx = (this.sound as any).context as AudioContext | undefined;
-        if (ctx && ctx.state === 'suspended') {
-          ctx.resume().catch(() => {/* ignore */});
-        }
-      }
-    });
-
-    // Handle orientation changes
-    this.scale.on('orientationchange', () => {
-      this.time.delayedCall(100, () => {
-        this.refreshLayout();
-      });
-    });
-
-    // Prevent default touch behaviors that might interfere with game
-    this.input.on('gameobjectdown', (pointer: Phaser.Input.Pointer) => {
-      pointer.event?.preventDefault();
-    });
-
-    // Add touch-friendly feedback
-    this.input.on('pointerover', () => {
-      this.input.setDefaultCursor('pointer');
-    });
-
-    this.input.on('pointerout', () => {
-      this.input.setDefaultCursor('default');
     });
   }
 
@@ -1276,19 +1047,88 @@ export class GameScene extends Scene {
     this.updateUI();
   }
 
-  private refreshLayout(): void {
-    // Refresh layout for orientation changes
-    // This helps ensure the game remains playable across different orientations
-    const newWidth = this.scale.width;
-    const newHeight = this.scale.height;
+  /**
+   * Override base class method to save game-specific state
+   */
+  protected saveGameState(): void {
+    const state: Omit<PhaserGameState, 'timestamp'> = {
+      currentScene: 'GameScene',
+      sceneStack: [], // Will be populated by PhaserStateManager
+      activeScenes: [], // Will be populated by PhaserStateManager
+      gameState: { ...this.gameState },
+      currentLevelIndex: this.currentLevelIndex,
+      droppedParts: this.droppedParts.map(part => part.getPartData()),
+      groundViolations: this.groundViolations,
+      totalPartsDropped: this.totalPartsDropped,
+      overallPartsPlaced: this.overallPartsPlaced,
+      successfulPartsInstalled: this.successfulPartsInstalled,
+      wrongPartsCurrentLevel: this.wrongPartsCurrentLevel,
+      totalSuccessfulPlaced: this.totalSuccessfulPlaced,
+      rewardedCastleCount: this.rewardedCastleCount,
+      partSpeed: this.partSpeed,
+      direction: this.direction
+    };
 
-    // Update instruction text position
-    if (this.instructionText) {
-      this.instructionText.setPosition(newWidth / 2, newHeight - 100);
+    phaserStateManager.saveGameState(this.game, state);
+  }
+
+  /**
+   * Override base class method to provide game-specific restore data
+   */
+  protected getSceneDataForRestore(): any {
+    return {
+      gameState: this.gameState,
+      currentLevelIndex: this.currentLevelIndex,
+      totalPartsDropped: this.totalPartsDropped,
+      overallPartsPlaced: this.overallPartsPlaced,
+      successfulPartsInstalled: this.successfulPartsInstalled,
+      wrongPartsCurrentLevel: this.wrongPartsCurrentLevel,
+      totalSuccessfulPlaced: this.totalSuccessfulPlaced,
+      rewardedCastleCount: this.rewardedCastleCount,
+      partSpeed: this.partSpeed,
+      direction: this.direction,
+      // Add any other game-specific data that should survive page reload
+    };
+  }
+
+  /**
+   * Override base class method to restore game-specific data
+   */
+  protected restoreSceneData(data: any): void {
+    if (data.gameState) {
+      this.gameState = data.gameState;
     }
-
-    // Update UI positions if needed
-    // Other UI elements are positioned relative to screen edges so they should adapt automatically
+    if (data.currentLevelIndex !== undefined) {
+      this.currentLevelIndex = data.currentLevelIndex;
+    }
+    if (data.totalPartsDropped !== undefined) {
+      this.totalPartsDropped = data.totalPartsDropped;
+    }
+    if (data.overallPartsPlaced !== undefined) {
+      this.overallPartsPlaced = data.overallPartsPlaced;
+    }
+    if (data.successfulPartsInstalled !== undefined) {
+      this.successfulPartsInstalled = data.successfulPartsInstalled;
+    }
+    if (data.wrongPartsCurrentLevel !== undefined) {
+      this.wrongPartsCurrentLevel = data.wrongPartsCurrentLevel;
+    }
+    if (data.totalSuccessfulPlaced !== undefined) {
+      this.totalSuccessfulPlaced = data.totalSuccessfulPlaced;
+    }
+    if (data.rewardedCastleCount !== undefined) {
+      this.rewardedCastleCount = data.rewardedCastleCount;
+    }
+    if (data.partSpeed !== undefined) {
+      this.partSpeed = data.partSpeed;
+    }
+    if (data.direction !== undefined) {
+      this.direction = data.direction;
+    }
+    console.log(`[GameScene] Restored game state:`, { 
+      level: this.gameState.currentLevel, 
+      score: this.gameState.score 
+    });
   }
 
   private saveHighScore(): void {
@@ -1300,5 +1140,10 @@ export class GameScene extends Scene {
     } catch (error) {
       console.warn('Failed to save high score:', error);
     }
+  }
+
+  protected customShutdown(): void {
+    // Clean up any game-specific resources
+    this.cleanupGameObjects();
   }
 } 

@@ -1,5 +1,3 @@
-import { Scene } from 'phaser';
-import { supportsVibration } from '@/utils/DeviceUtils';
 import { tSync } from '@/i18n';
 import { phaserStateManager, PhaserGameState } from '@/utils/PhaserStateManager';
 import { 
@@ -11,6 +9,7 @@ import {
 } from '@/utils/TextUtils';
 import { createKidFriendlyButton, BUTTON_CONFIGS } from '@/utils/ButtonUtils';
 import { ConfirmationDialog } from '@/utils/ConfirmationDialog';
+import { BaseScene } from '@/scenes/BaseScene';
 
 interface LevelCompleteData {
   level: number;
@@ -20,20 +19,31 @@ interface LevelCompleteData {
   totalScore: number;
 }
 
-export class LevelCompleteScene extends Scene {
+export class LevelCompleteScene extends BaseScene {
   private levelData?: LevelCompleteData;
   private backgroundGradient?: Phaser.GameObjects.Graphics;
   private celebrationElements: Phaser.GameObjects.GameObject[] = [];
   private confirmationDialog?: ConfirmationDialog;
   
   constructor() {
-    super({ key: 'LevelCompleteScene' });
+    super('LevelCompleteScene');
+    // Set celebration music for level completion
+    this.setBackgroundMusic('level-complete-music');
+  }
+
+  // Implementation of BaseScene abstract methods
+  protected async customPreload(): Promise<void> {
+    // No custom preload logic needed - BaseScene handles audio and i18n
+  }
+
+  protected onLanguageChanged(): void {
+    // BaseScene components automatically handle translations
+    // Only update custom text objects here if needed
   }
 
   init(data?: LevelCompleteData & { restoreFromState?: boolean; savedState?: PhaserGameState }): void {
     // Handle scene restoration from saved state
     if (data?.restoreFromState && data?.savedState) {
-      // Restoring LevelCompleteScene from saved state
       this.restoreLevelCompleteState(data.savedState);
       return;
     }
@@ -41,18 +51,10 @@ export class LevelCompleteScene extends Scene {
     this.levelData = data;
   }
 
-  async preload(): Promise<void> {
-    // Initialize i18n system if not already done
-    const { initI18n } = await import('@/i18n');
-    await initI18n();
-  }
-
   /**
    * Restore level complete state from saved data
    */
   private restoreLevelCompleteState(savedState: PhaserGameState): void {
-    // Restoring level complete state
-
     // Restore level data from saved state
     this.levelData = {
       level: savedState.gameState.currentLevel,
@@ -61,24 +63,15 @@ export class LevelCompleteScene extends Scene {
       perfectDrops: 0,
       totalScore: savedState.gameState.score
     };
-    
-    // Level complete state restored successfully
   }
 
-  async create(): Promise<void> {
-    // Wait for i18n to be fully initialized
-    const { initI18n } = await import('@/i18n');
-    await initI18n();
-    
+  protected customCreate(): void {
     this.createBackground();
     this.createLevelCompleteTitle();
     this.createStatsDisplay();
     this.createActionButtons();
     this.createCelebrationEffects();
-    this.setupMobileOptimizations();
-    
-    // Enable auto-save for development persistence
-    this.enableAutoSave();
+    // Mobile optimizations and auto-save are handled by BaseScene
   }
 
   private createBackground(): void {
@@ -202,7 +195,7 @@ export class LevelCompleteScene extends Scene {
     // Position buttons in the lower portion of the screen
     const buttonY = this.scale.height * 0.8; // Moved down slightly
 
-    // Continue to next level button (primary action)
+    // Continue to next level button (primary action) using BaseScene helper
     createKidFriendlyButton(
       this,
       this.scale.width / 2,
@@ -212,7 +205,7 @@ export class LevelCompleteScene extends Scene {
       () => this.continueToNextLevel()
     );
 
-    // Finish game button (secondary action)
+    // Finish game button (secondary action) using BaseScene helper
     createKidFriendlyButton(
       this,
       this.scale.width / 2,
@@ -222,8 +215,6 @@ export class LevelCompleteScene extends Scene {
       () => this.finishGame()
     );
   }
-
-
 
   private createCelebrationEffects(): void {
     this.createConfetti();
@@ -282,59 +273,12 @@ export class LevelCompleteScene extends Scene {
     }
   }
 
-  private setupMobileOptimizations(): void {
-    // Mobile haptic feedback
-    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-      const isTouchInput = (pointer as any).pointerType === 'touch' || (pointer.event as any)?.pointerType === 'touch';
-
-      if (isTouchInput && supportsVibration()) {
-        navigator.vibrate(30);
-      }
-
-      if (this.sound.locked) {
-        this.sound.unlock();
-      } else {
-        const ctx = (this.sound as any).context as AudioContext | undefined;
-        if (ctx && ctx.state === 'suspended') {
-          ctx.resume().catch(() => {/* ignore */});
-        }
-      }
-    });
-
-    // Handle orientation changes
-    this.scale.on('orientationchange', () => {
-      this.time.delayedCall(100, () => {
-        this.refreshLayout();
-      });
-    });
-  }
-
-  private refreshLayout(): void {
-    // Refresh layout for orientation changes
-    const newWidth = this.scale.width;
-    const newHeight = this.scale.height;
-    
-    if (this.backgroundGradient) {
-      this.backgroundGradient.clear();
-      this.backgroundGradient.fillGradientStyle(
-        0x4ECDC4, 0x45B7D1,
-        0x96CEB4, 0xFFEAA7,
-        1
-      );
-      this.backgroundGradient.fillRect(0, 0, newWidth, newHeight);
-    }
-  }
-
   private continueToNextLevel(): void {
-    // Fade out and start fresh GameScene for next level
-    this.cameras.main.fadeOut(300);
-    this.cameras.main.once('camerafadeoutcomplete', () => {
-      // Start fresh GameScene with next level data
-      this.scene.start('GameScene', {
-        continueFromLevel: true,
-        currentLevel: (this.levelData?.level || 1) + 1,
-        totalScore: this.levelData?.totalScore || 0
-      });
+    // Use BaseScene transition helper with music handling
+    this.transitionToScene('GameScene', {
+      continueFromLevel: true,
+      currentLevel: (this.levelData?.level || 1) + 1,
+      totalScore: this.levelData?.totalScore || 0
     });
   }
 
@@ -357,11 +301,8 @@ export class LevelCompleteScene extends Scene {
   }
 
   private confirmFinishGame(): void {
-    // Fade out and go to main menu to start fresh
-    this.cameras.main.fadeOut(300);
-    this.cameras.main.once('camerafadeoutcomplete', () => {
-      this.scene.start('MenuScene');
-    });
+    // Use BaseScene navigation helper
+    this.goToMenu();
   }
 
   private cancelFinishGame(): void {
@@ -369,23 +310,9 @@ export class LevelCompleteScene extends Scene {
   }
 
   /**
-   * Enable automatic saving of level complete state
+   * Override base class method to save level complete-specific game state
    */
-  private enableAutoSave(): void {
-    // Save every 5 seconds using Phaser's timer
-    this.time.addEvent({
-      delay: 5000,
-      callback: () => {
-        this.saveCurrentState();
-      },
-      loop: true
-    });
-  }
-
-  /**
-   * Save current level complete state
-   */
-  private saveCurrentState(): void {
+  protected saveGameState(): void {
     const state: Omit<PhaserGameState, 'timestamp'> = {
       currentScene: 'LevelCompleteScene',
       sceneStack: [], // Will be populated by PhaserStateManager
@@ -414,10 +341,27 @@ export class LevelCompleteScene extends Scene {
     phaserStateManager.saveGameState(this.game, state);
   }
 
-  shutdown(): void {
-    // Save state before shutting down
-    this.saveCurrentState();
-    
+  /**
+   * Override base class method to provide level complete-specific restore data
+   */
+  protected getSceneDataForRestore(): any {
+    return {
+      levelData: this.levelData,
+      // Add any other level complete-specific data that should survive page reload
+    };
+  }
+
+  /**
+   * Override base class method to restore level complete-specific data
+   */
+  protected restoreSceneData(data: any): void {
+    if (data.levelData) {
+      this.levelData = data.levelData;
+    }
+    console.log(`[LevelCompleteScene] Restored level complete state:`, this.levelData);
+  }
+
+  protected customShutdown(): void {
     // Clean up celebration elements
     this.celebrationElements.forEach(element => {
       if (element && element.destroy) {

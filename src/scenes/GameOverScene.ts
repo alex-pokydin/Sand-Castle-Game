@@ -1,5 +1,3 @@
-import { Scene } from 'phaser';
-import { supportsVibration } from '@/utils/DeviceUtils';
 import { 
   createResponsiveTitle, 
   createResponsiveSubtitle, 
@@ -8,6 +6,7 @@ import {
   TEXT_CONFIGS 
 } from '@/utils/TextUtils';
 import { createKidFriendlyButton, BUTTON_CONFIGS } from '@/utils/ButtonUtils';
+import { BaseScene } from '@/scenes/BaseScene';
 
 interface GameOverData {
   score: number;
@@ -17,20 +16,40 @@ interface GameOverData {
   perfectDrops: number;
 }
 
-export class GameOverScene extends Scene {
+export class GameOverScene extends BaseScene {
   private gameData?: GameOverData;
   private celebrationElements: Phaser.GameObjects.GameObject[] = [];
   private backgroundGradient?: Phaser.GameObjects.Graphics;
   
   constructor() {
-    super({ key: 'GameOverScene' });
+    super('GameOverScene');
+    // Set background music based on victory/defeat (will be set dynamically in customCreate)
+    this.setBackgroundMusic('achievement'); // Default to achievement music
+  }
+
+  // Implementation of BaseScene abstract methods
+  protected async customPreload(): Promise<void> {
+    // No custom preload logic needed - BaseScene handles audio and i18n
+  }
+
+  protected onLanguageChanged(): void {
+    // Update any text that might need language updates
+    // Most text in this scene uses static English for celebration messages
+    // Could be enhanced later to translate celebration messages
   }
 
   init(data: GameOverData): void {
     this.gameData = data;
+    
+    // Set appropriate background music based on victory/defeat
+    if (data?.isVictory) {
+      this.setBackgroundMusic('achievement'); // Celebration music for victory
+    } else {
+      this.setBackgroundMusic('background-music'); // Calm music for game over
+    }
   }
 
-  create(): void {
+  protected customCreate(): void {
     this.createBackground();
     
     if (this.gameData?.isVictory) {
@@ -42,7 +61,7 @@ export class GameOverScene extends Scene {
     this.createScoreDisplay();
     this.createActionButtons();
     this.createCelebrationEffects();
-    this.setupMobileOptimizations();
+    // Mobile optimizations are handled by BaseScene
   }
 
   private createBackground(): void {
@@ -237,9 +256,9 @@ export class GameOverScene extends Scene {
 
   private createActionButtons(): void {
     const buttonY = this.scale.height * 0.7;
-    const buttonSpacing = 100;
+    const buttonSpacing = calculateDynamicSpacing(this, 90);
 
-    // Primary action button
+    // Primary action button using BaseScene helper
     const primaryAction = this.gameData?.isVictory ? 'Next Level' : 'Try Again';
     createKidFriendlyButton(
       this,
@@ -250,14 +269,14 @@ export class GameOverScene extends Scene {
       () => this.handlePrimaryAction()
     );
 
-    // Secondary action - Menu button
+    // Secondary action - Menu button using BaseScene helper
     createKidFriendlyButton(
       this,
       this.scale.width / 2,
       buttonY + buttonSpacing,
       'Main Menu',
       BUTTON_CONFIGS.SECONDARY,
-      () => this.goToMenu()
+      () => this.goToMenu() // Use BaseScene navigation helper
     );
 
     // If game over, add restart level option
@@ -272,8 +291,6 @@ export class GameOverScene extends Scene {
       );
     }
   }
-
-
 
   private createCelebrationEffects(): void {
     if (this.gameData?.isVictory) {
@@ -367,72 +384,13 @@ export class GameOverScene extends Scene {
     }
   }
 
-  private setupMobileOptimizations(): void {
-    // Mobile haptic feedback
-    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-      const isTouchInput = (pointer as any).pointerType === 'touch' || (pointer.event as any)?.pointerType === 'touch';
-
-      if (isTouchInput && supportsVibration()) {
-        navigator.vibrate(50);
-      }
-
-      if (this.sound.locked) {
-        this.sound.unlock();
-      } else {
-        const ctx = (this.sound as any).context as AudioContext | undefined;
-        if (ctx && ctx.state === 'suspended') {
-          ctx.resume().catch(() => {/* ignore */});
-        }
-      }
-    });
-
-    // Handle orientation changes
-    this.scale.on('orientationchange', () => {
-      this.time.delayedCall(100, () => {
-        this.refreshLayout();
-      });
-    });
-  }
-
-
-
-  private refreshLayout(): void {
-    // Refresh layout for orientation changes
-    // Similar to MenuScene implementation
-    const newWidth = this.scale.width;
-    const newHeight = this.scale.height;
-    
-    if (this.backgroundGradient) {
-      this.backgroundGradient.clear();
-      
-      if (this.gameData?.isVictory) {
-        this.backgroundGradient.fillGradientStyle(
-          0xFFD700, 0xFFA500,
-          0xFF6B35, 0xF7931E,
-          1
-        );
-      } else {
-        this.backgroundGradient.fillGradientStyle(
-          0x74B9FF, 0x0984E3,
-          0x6C5CE7, 0xA29BFE,
-          1
-        );
-      }
-      
-      this.backgroundGradient.fillRect(0, 0, newWidth, newHeight);
-    }
-  }
-
   private handlePrimaryAction(): void {
     if (this.gameData?.isVictory) {
       // For victory (level 5+), go to next level
-      this.cameras.main.fadeOut(300);
-      this.cameras.main.once('camerafadeoutcomplete', () => {
-        this.scene.start('GameScene', {
-          continueFromLevel: true,
-          currentLevel: (this.gameData?.level || 5) + 1,
-          totalScore: this.gameData?.score || 0
-        });
+      this.transitionToScene('GameScene', {
+        continueFromLevel: true,
+        currentLevel: (this.gameData?.level || 5) + 1,
+        totalScore: this.gameData?.score || 0
       });
     } else {
       // Try again (restart current level)
@@ -441,20 +399,10 @@ export class GameOverScene extends Scene {
   }
 
   private restartLevel(): void {
-    this.cameras.main.fadeOut(300);
-    this.cameras.main.once('camerafadeoutcomplete', () => {
-      this.scene.start('GameScene');
-    });
+    this.transitionToScene('GameScene');
   }
 
-  private goToMenu(): void {
-    this.cameras.main.fadeOut(300);
-    this.cameras.main.once('camerafadeoutcomplete', () => {
-      this.scene.start('MenuScene');
-    });
-  }
-
-  shutdown(): void {
+  protected customShutdown(): void {
     // Clean up celebration elements
     this.celebrationElements.forEach(element => {
       if (element && element.destroy) {
