@@ -292,13 +292,18 @@ export class PhaserStateManager {
   /**
    * Save scene-specific data for page reload restoration (localStorage)
    */
-  saveSceneRestoreData(sceneKey: string, data: any): void {
+  saveSceneRestoreData(sceneKey: string, data: any, updateLastScene: boolean = true): void {
     try {
       const sceneDataKey = `${this.SCENE_DATA_PREFIX}${sceneKey}`;
       localStorage.setItem(sceneDataKey, JSON.stringify(data));
-      localStorage.setItem(this.LAST_SCENE_KEY, sceneKey);
-      localStorage.setItem(this.LAST_SAVE_TIME_KEY, Date.now().toString());
-      console.log(`[StateManager] Saved restore data for scene '${sceneKey}'`);
+      
+      // Only update last scene tracking if explicitly requested
+      if (updateLastScene) {
+        localStorage.setItem(this.LAST_SCENE_KEY, sceneKey);
+        localStorage.setItem(this.LAST_SAVE_TIME_KEY, Date.now().toString());
+      }
+      
+      console.log(`[StateManager] Saved restore data for scene '${sceneKey}'${updateLastScene ? ' (updated last scene)' : ' (preserved last scene)'}`);
     } catch (error) {
       console.warn(`[StateManager] Failed to save scene restore data for '${sceneKey}':`, error);
     }
@@ -397,6 +402,34 @@ export class PhaserStateManager {
       console.log('[StateManager] Cleared all scene restoration data');
     } catch (error) {
       console.warn('[StateManager] Failed to clear scene data:', error);
+    }
+  }
+
+  /**
+   * Debug function to check last scene tracking
+   */
+  debugLastSceneTracking(): { lastScene?: string; lastSaveTime?: number; age?: string; sceneData?: string[] } {
+    try {
+      const lastScene = localStorage.getItem(this.LAST_SCENE_KEY);
+      const lastSaveTime = parseInt(localStorage.getItem(this.LAST_SAVE_TIME_KEY) || '0');
+      
+      // Get all scene data keys
+      const sceneDataKeys = Object.keys(localStorage)
+        .filter(key => key.startsWith(this.SCENE_DATA_PREFIX))
+        .map(key => key.replace(this.SCENE_DATA_PREFIX, ''));
+      
+      const result = {
+        lastScene: lastScene || undefined,
+        lastSaveTime: lastSaveTime || undefined,
+        age: lastSaveTime ? `${Math.round((Date.now() - lastSaveTime) / 1000)}s ago` : undefined,
+        sceneData: sceneDataKeys
+      };
+      
+      console.log('[StateManager] Last Scene Tracking Debug:', result);
+      return result;
+    } catch (error) {
+      console.warn('[StateManager] Failed to debug last scene tracking:', error);
+      return {};
     }
   }
 }

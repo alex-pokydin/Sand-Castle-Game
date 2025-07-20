@@ -11,7 +11,8 @@ sand-castle-game/
 ├── vite.config.ts             # Vite configuration
 ├── .eslintrc.json             # ESLint configuration
 ├── src/
-│   ├── main.ts                # Game initialization and scene registration
+│   ├── main.ts                # 🎮 Pure entry point - game orchestration only
+│   ├── scenes.ts              # 🎭 Scene registry - add new scenes here
 │   ├── types/                 # TypeScript type definitions
 │   │   ├── Game.ts           # Game-specific types and interfaces
 │   │   └── Physics.ts        # Physics-related types and constants
@@ -22,6 +23,7 @@ sand-castle-game/
 │   │       ├── en.ts         # English locale settings (minimal)
 │   │       └── ua.ts         # Ukrainian translations (complete)
 │   ├── scenes/               # Phaser game scenes
+│   │   ├── BaseScene.ts      # 🏗️ Abstract base class - extend for all scenes
 │   │   ├── MenuScene.ts      # Main menu with navigation
 │   │   ├── GameScene.ts      # Core gameplay mechanics
 │   │   ├── GameOverScene.ts  # Game over and victory screens
@@ -31,14 +33,22 @@ sand-castle-game/
 │   │   ├── CastlePart.ts     # Castle part physics and rendering
 │   │   └── StabilityManager.ts # Physics stability calculations
 │   ├── utils/                # Utility functions and helpers
-│   │   ├── AudioManager.ts   # Howler.js audio management
+│   │   ├── AudioManager.ts   # Audio management with state persistence
 │   │   ├── PartUtils.ts      # Part spawning and sizing utilities
 │   │   ├── DeviceUtils.ts    # Device detection and capabilities
 │   │   ├── TextUtils.ts      # Responsive text creation helpers
 │   │   ├── ButtonUtils.ts    # Button creation and styling helpers
-│   │   └── FirebaseConfig.ts # Firebase integration setup
+│   │   ├── ConfirmationDialog.ts # Reusable confirmation dialog component
+│   │   ├── PhaserStateManager.ts # Game state persistence and restoration
+│   │   ├── SettingsManager.ts # Settings persistence and management
+│   │   ├── PWAManager.ts     # Progressive web app functionality
+│   │   ├── SystemInitializer.ts # 🚀 System orchestration and initialization
+│   │   ├── DebugConsole.ts   # 🔧 Development debug functions
+│   │   ├── MobileEventHandlers.ts # 📱 Mobile-specific event handling
+│   │   └── GameEventHandlers.ts # ⚡ Game event management
 │   └── config/               # Game configuration
-│       └── gameConfig.ts     # Game settings, levels, and constants
+│       ├── gameConfig.ts     # Game settings, levels, and constants
+│       └── phaserConfig.ts   # ⚙️ Phaser.js engine configuration
 ├── public/                   # Static assets
 │   ├── favicon.ico
 │   ├── manifest.json         # PWA manifest
@@ -46,6 +56,99 @@ sand-castle-game/
 │       ├── castle-parts.svg  # Castle part graphics
 │       └── sounds/           # Audio files
 └── firebase.json             # Firebase configuration
+```
+
+## 🏗️ Architecture Overview
+
+### Modular Design Principles
+- **Single Responsibility**: Each file has one clear purpose
+- **Clean Entry Point**: `main.ts` is just orchestration
+- **Separation of Concerns**: Configuration, logic, and utilities are separated
+- **Easy Extension**: Adding features doesn't require touching core files
+
+### Key Files and Their Roles
+
+#### **Core Entry Points**
+- `src/main.ts` - Game entry point and orchestration only
+- `src/scenes.ts` - Scene registry (add new scenes here)
+
+#### **Configuration**
+- `src/config/phaserConfig.ts` - Phaser engine settings (resolution, physics, etc.)
+- `src/config/gameConfig.ts` - Game-specific settings (levels, gameplay constants)
+
+#### **System Management**
+- `src/utils/SystemInitializer.ts` - Orchestrates all system startup
+- `src/utils/GameEventHandlers.ts` - Game-wide event handling
+- `src/utils/MobileEventHandlers.ts` - Mobile optimizations
+
+#### **Development**
+- `src/utils/DebugConsole.ts` - All debug functions for development
+
+## 🎯 How to Extend the Game
+
+### Adding a New Scene
+```typescript
+// 1. Create your scene class extending BaseScene
+export class TutorialScene extends BaseScene {
+  constructor() {
+    super('TutorialScene');
+    this.setBackgroundMusic('menu-theme'); // Optional
+  }
+  
+  protected async customPreload(): Promise<void> { /* ... */ }
+  protected customCreate(): void { /* ... */ }
+  protected onLanguageChanged(): void { /* ... */ }
+}
+
+// 2. Add to src/scenes.ts (ONLY file that needs editing)
+import { TutorialScene } from '@/scenes/TutorialScene';
+
+export const SCENES: Record<string, typeof BaseScene> = {
+  'MenuScene': MenuScene,
+  'GameScene': GameScene,
+  'TutorialScene': TutorialScene,  // ← Add this line
+  // ... other scenes
+};
+```
+
+### Modifying Game Configuration
+```typescript
+// Engine settings: Edit src/config/phaserConfig.ts
+export const phaserConfig = {
+  width: 800,
+  height: 600,
+  // ... Phaser settings
+};
+
+// Game settings: Edit src/config/gameConfig.ts  
+export const GAME_CONFIG = {
+  maxLevels: 10,
+  scoreMultiplier: 100,
+  // ... game constants
+};
+```
+
+### Adding Debug Functions
+```typescript
+// Edit src/utils/DebugConsole.ts
+export function setupDebugConsole(game: Game): void {
+  // Add your debug functions here
+  (window as any).myNewDebugFunction = () => {
+    console.log('Custom debug function');
+  };
+}
+```
+
+### Adding System Initialization
+```typescript
+// Edit src/utils/SystemInitializer.ts
+private async initializeSystems(): Promise<void> {
+  await Promise.all([
+    this.initializeAudioSystem(),
+    this.initializeMyNewSystem(), // ← Add new system here
+    // ... other systems
+  ]);
+}
 ```
 
 ## Naming Conventions

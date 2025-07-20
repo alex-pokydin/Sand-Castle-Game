@@ -98,9 +98,11 @@ export abstract class BaseScene extends Scene {
   protected audioManager: AudioManager;
   protected languageChangeHandler?: (lang: any) => void;
   protected backgroundMusic: string | null = 'background-music'; // Default beach music
+  private sceneCreateTime: number = Date.now(); // Track when the scene was created
 
   constructor(key: string) {
     super({ key });
+    this.sceneCreateTime = Date.now(); // Track when the scene was created
     this.audioManager = AudioManager.getInstance();
   }
 
@@ -175,6 +177,24 @@ export abstract class BaseScene extends Scene {
       this.saveCurrentState();
       console.log(`[BaseScene] Scene '${this.scene.key}' created & state saved`);
     });
+
+    // Schedule delayed last scene tracking update for transition destinations
+    // This ensures legitimate scene stays become the new "last active scene"
+    this.time.delayedCall(3000, () => {
+      this.updateLastSceneTrackingDelayed();
+    });
+  }
+
+  /**
+   * Delayed update of last scene tracking for legitimate scene stays
+   * Called 3 seconds after scene creation to establish it as the active scene
+   */
+  private updateLastSceneTrackingDelayed(): void {
+    if (this.scene.isActive()) {
+      const sceneData = this.getSceneDataForRestore();
+      phaserStateManager.saveSceneRestoreData(this.scene.key, sceneData, true);
+      console.log(`[BaseScene] Scene '${this.scene.key}' established as last active scene after delay`);
+    }
   }
 
   /**
@@ -288,6 +308,12 @@ export abstract class BaseScene extends Scene {
       // Save state immediately when scene becomes active
       this.time.delayedCall(200, () => {
         this.saveCurrentState();
+      });
+      
+      // Schedule delayed last scene tracking update for resumed scenes
+      // This ensures scenes that become active later are tracked as the last active scene
+      this.time.delayedCall(2000, () => {
+        this.updateLastSceneTrackingDelayed();
       });
     });
 
@@ -487,7 +513,32 @@ export abstract class BaseScene extends Scene {
     
     // Save scene-specific restoration data using StateManager
     const sceneData = this.getSceneDataForRestore();
-    phaserStateManager.saveSceneRestoreData(this.scene.key, sceneData);
+    
+    // Determine if this scene should update the "last active scene" tracking
+    // Don't update immediately after creation to prevent transition overwrites
+    const shouldUpdateLastScene = this.shouldUpdateLastSceneTracking();
+    
+    phaserStateManager.saveSceneRestoreData(this.scene.key, sceneData, shouldUpdateLastScene);
+  }
+
+  /**
+   * Determine if this scene should update the last scene tracking
+   * Prevents immediate overwrites during scene transitions
+   */
+  private shouldUpdateLastSceneTracking(): boolean {
+    // Check if the scene was just created (within last 1 second)
+    const currentTime = Date.now();
+    const sceneAge = currentTime - this.sceneCreateTime;
+    
+    // If scene is very new (< 1 second), it's likely a transition destination
+    // Don't update last scene tracking immediately to preserve the source scene
+    if (sceneAge < 1000) {
+      console.log(`[BaseScene] Scene '${this.scene.key}' is new (${sceneAge}ms), preserving last scene tracking`);
+      return false;
+    }
+    
+    // For older scenes or scenes that become active later, update tracking
+    return true;
   }
 
   /**
