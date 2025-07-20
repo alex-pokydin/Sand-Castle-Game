@@ -446,7 +446,7 @@ export class CastlePart extends Phaser.GameObjects.Rectangle {
       this.audioManager.playSound('place-good');
     } else if (currentLevel === 'unstable' && previousLevel !== 'unstable') {
       // Becoming unstable - warning sound
-      this.audioManager.playSound('wobble');
+      //this.audioManager.playSound('wobble');
     }
     
     // Special case: if transitioning from unstable to stable (rare but possible)
