@@ -74,6 +74,77 @@ export class FirebaseService {
   }
 
   /**
+   * Sign in with Google and initialize user profile
+   */
+  async signInWithGoogle(): Promise<User> {
+    try {
+      const user = await firebaseManager.signInWithGoogle();
+      await this.initializeUserIfNeeded(user);
+      return user;
+    } catch (error) {
+      console.error('[FirebaseService] Google sign in failed:', error);
+      throw this.createFirebaseError('auth/google-signin-failed', 'Failed to sign in with Google', error);
+    }
+  }
+
+  /**
+   * Sign in with Google redirect (for mobile devices)
+   */
+  async signInWithGoogleRedirect(): Promise<void> {
+    try {
+      await firebaseManager.signInWithGoogleRedirect();
+    } catch (error) {
+      console.error('[FirebaseService] Google redirect failed:', error);
+      throw this.createFirebaseError('auth/google-redirect-failed', 'Failed to initiate Google sign in', error);
+    }
+  }
+
+  /**
+   * Get redirect result (call after page load)
+   */
+  async getRedirectResult(): Promise<User | null> {
+    try {
+      const user = await firebaseManager.getRedirectResult();
+      if (user) {
+        await this.initializeUserIfNeeded(user);
+      }
+      return user;
+    } catch (error) {
+      console.error('[FirebaseService] Redirect result failed:', error);
+      throw this.createFirebaseError('auth/redirect-result-failed', 'Failed to get redirect result', error);
+    }
+  }
+
+  /**
+   * Sign out current user
+   */
+  async signOut(): Promise<void> {
+    try {
+      await firebaseManager.signOut();
+      this.currentUserId = null;
+      this.userProfileCache = null;
+      console.log('[FirebaseService] ✅ Sign out successful');
+    } catch (error) {
+      console.error('[FirebaseService] Sign out failed:', error);
+      throw this.createFirebaseError('auth/signout-failed', 'Failed to sign out', error);
+    }
+  }
+
+  /**
+   * Link anonymous account with Google account
+   */
+  async linkWithGoogle(): Promise<User> {
+    try {
+      const user = await firebaseManager.linkWithGoogle();
+      await this.initializeUserIfNeeded(user);
+      return user;
+    } catch (error) {
+      console.error('[FirebaseService] Account linking failed:', error);
+      throw this.createFirebaseError('auth/link-failed', 'Failed to link account', error);
+    }
+  }
+
+  /**
    * Initialize user profile if it doesn't exist
    */
   private async initializeUserIfNeeded(user: User): Promise<void> {
@@ -107,10 +178,23 @@ export class FirebaseService {
         this.userProfileCache = newProfile;
         console.log('[FirebaseService] ✅ New user profile created');
       } else {
-        // Update last played timestamp
-        await updateDoc(userDoc, {
+        // Update profile with latest Google info if available
+        const existingProfile = userSnapshot.data() as UserProfile;
+        const updates: any = {
           lastPlayedAt: serverTimestamp()
-        });
+        };
+
+        // Update display name if user has Google account and name changed
+        if (!user.isAnonymous && user.displayName && user.displayName !== existingProfile.displayName) {
+          updates.displayName = user.displayName;
+        }
+
+        // Update anonymous status if user linked Google account
+        if (existingProfile.isAnonymous && !user.isAnonymous) {
+          updates.isAnonymous = false;
+        }
+
+        await updateDoc(userDoc, updates);
         console.log('[FirebaseService] ✅ Existing user signed in');
       }
     } catch (error) {
@@ -561,6 +645,20 @@ export class FirebaseService {
   }
 
   /**
+   * Check if current user is anonymous
+   */
+  isAnonymous(): boolean {
+    return firebaseManager.isAnonymous();
+  }
+
+  /**
+   * Check if current user has Google account linked
+   */
+  hasGoogleAccount(): boolean {
+    return firebaseManager.hasGoogleAccount();
+  }
+
+  /**
    * Get current user ID
    */
   getCurrentUserId(): string | null {
@@ -583,12 +681,17 @@ export const firebaseService = FirebaseService.getInstance();
 // Debug functions for development
 export const debugFirebaseService = {
   signIn: () => firebaseService.signInAnonymously(),
+  signInWithGoogle: () => firebaseService.signInWithGoogle(),
+  signOut: () => firebaseService.signOut(),
+  linkWithGoogle: () => firebaseService.linkWithGoogle(),
   getProfile: () => firebaseService.getUserProfile(),
   updateProfile: (updates: any) => firebaseService.updateUserProfile(updates),
   getLeaderboard: (type?: LeaderboardType) => firebaseService.getLeaderboard(type),
   saveToCloud: (gameState: any, sessionData: any) => firebaseService.saveToCloud(gameState, sessionData),
   loadFromCloud: () => firebaseService.loadFromCloud(),
   isAuthenticated: () => firebaseService.isAuthenticated(),
+  isAnonymous: () => firebaseService.isAnonymous(),
+  hasGoogleAccount: () => firebaseService.hasGoogleAccount(),
   getUserId: () => firebaseService.getCurrentUserId()
 };
 

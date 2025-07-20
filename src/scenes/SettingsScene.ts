@@ -1,11 +1,13 @@
 import { tSync, setLanguage, getCurrentLanguage, getAvailableLanguages } from '@/i18n';
 import { BaseScene } from '@/scenes/BaseScene';
+import { createAuthUI, AuthUI } from '@/utils/AuthUI';
 
 export class SettingsScene extends BaseScene {
   private languageButtons: Phaser.GameObjects.Container[] = [];
   private isDragging: boolean = false;
   private dragTarget?: Phaser.GameObjects.Container;
   private lastSoundFeedbackTime: number = 0;
+  private authUI?: AuthUI;
   
   constructor() {
     super('SettingsScene');
@@ -23,12 +25,18 @@ export class SettingsScene extends BaseScene {
     this.createTitle();
     this.createLanguageSelector();
     this.createAudioSettings();
+    this.createAuthenticationSection();
     this.createBackButton();
     this.setupVolumeSliderDragging();
   }
 
   protected onLanguageChanged(): void {
     this.updateLanguageButtons();
+    
+    // Update authentication UI language
+    if (this.authUI) {
+      this.authUI.updateLanguage();
+    }
   }
 
   private createBackground(): void {
@@ -392,6 +400,34 @@ export class SettingsScene extends BaseScene {
         }
       }
     );
+  }
+
+  private createAuthenticationSection(): void {
+    // Authentication section title
+    const authTitle = this.add.text(
+      this.scale.width / 2,
+      this.scale.height * 0.75,
+      tSync('Account'),
+      {
+        fontSize: '22px',
+        fontFamily: 'Arial, sans-serif',
+        color: '#2C3E50',
+        stroke: '#FFFFFF',
+        strokeThickness: 2,
+        align: 'center'
+      }
+    );
+    authTitle.setOrigin(0.5);
+
+    // Create authentication UI
+    this.authUI = createAuthUI(this, {
+      x: this.scale.width / 2,
+      y: this.scale.height * 0.82,
+      onAuthStateChanged: (isAuthenticated: boolean, isAnonymous: boolean) => {
+        // Handle auth state changes if needed
+        console.log('[SettingsScene] Auth state changed:', { isAuthenticated, isAnonymous });
+      }
+    });
   }
 
   /**

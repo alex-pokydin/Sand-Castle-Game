@@ -98,6 +98,19 @@ export const translations: Record<string, string> = {
   // Achievements & Progress
   "First Castle Built!": "Перший Замок Збудовано!",
   "Perfect Builder": "Досконалий Будівельник",
+
+  // Authentication
+  "Account": "Обліковий Запис",
+  "Sign In with Google": "Увійти через Google",
+  "Sign Out": "Вийти",
+  "Link Google Account": "Прив'язати Google Обліковий Запис",
+  "Signed in with Google": "Увійшли через Google",
+  "Playing as Guest": "Граємо як Гість",
+  "Signed In": "Увійшли",
+  "Not Signed In": "Не Увійшли",
+  "Sign in failed. Please try again.": "Помилка входу. Спробуйте ще раз.",
+  "Sign out failed. Please try again.": "Помилка виходу. Спробуйте ще раз.",
+  "Account linking failed. Please try again.": "Помилка прив'язування облікового запису. Спробуйте ще раз.",
   "Master Architect": "Майстер Архітектор",
   "Total Castles Built: {{count}}": "Всього Замків Збудовано: {{count}}",
   "Best Score: {{score}}": "Найкращий Результат: {{score}}",

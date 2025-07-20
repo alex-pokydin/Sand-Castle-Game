@@ -6,6 +6,8 @@ import { phaserStateManager } from '@/utils/PhaserStateManager';
 import { debugI18n, testSetLanguage, testTranslation, clearSavedLanguage, testSystemLanguageDetection, checkMissingTranslations } from '@/i18n';
 import { debugPhaserState } from '@/utils/PhaserStateManager';
 import { SCENES, getAllScenes, isValidScene } from '@/scenes';
+import { debugFirebase } from '@/utils/FirebaseConfig';
+import { debugFirebaseService } from '@/utils/FirebaseService';
 
 /**
  * Debug Console Functions
@@ -75,6 +77,10 @@ export function setupDebugConsole(game: Game): void {
     phaserStateManager.clearGameState(game);
     game.scene.start('MenuScene');
   };
+
+  // === Firebase Debug Functions ===
+  (window as any).debugFirebase = debugFirebase;
+  (window as any).debugFirebaseService = debugFirebaseService;
 
   // === Scene Debug Functions ===
   (window as any).debugSceneRegistry = () => {

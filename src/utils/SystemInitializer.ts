@@ -160,14 +160,24 @@ export class SystemInitializer {
       // (no initialization needed, it's ready by default)
       console.log('[SystemInit] ✅ Social manager ready');
 
-      // Try anonymous authentication for cloud features
+      // Check for Google authentication redirect result first
       try {
-        await firebaseService.signInAnonymously();
-        console.log('[SystemInit] ✅ Anonymous authentication successful');
-        
-        // Attempt cloud sync
-        await cloudSaveManager.syncWithCloud();
-        console.log('[SystemInit] ✅ Cloud sync completed');
+        const redirectUser = await firebaseService.getRedirectResult();
+        if (redirectUser) {
+          console.log('[SystemInit] ✅ Google authentication redirect successful');
+          
+          // Attempt cloud sync
+          await cloudSaveManager.syncWithCloud();
+          console.log('[SystemInit] ✅ Cloud sync completed');
+        } else {
+          // Try anonymous authentication for cloud features
+          await firebaseService.signInAnonymously();
+          console.log('[SystemInit] ✅ Anonymous authentication successful');
+          
+          // Attempt cloud sync
+          await cloudSaveManager.syncWithCloud();
+          console.log('[SystemInit] ✅ Cloud sync completed');
+        }
       } catch (authError) {
         console.warn('[SystemInit] ⚠️ Firebase authentication failed:', authError);
         // Continue without cloud features

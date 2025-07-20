@@ -1,5 +1,16 @@
 import { initializeApp, FirebaseApp } from 'firebase/app';
-import { getAuth, Auth, signInAnonymously, User, onAuthStateChanged } from 'firebase/auth';
+import { 
+  getAuth, 
+  Auth, 
+  signInAnonymously, 
+  User, 
+  onAuthStateChanged,
+  GoogleAuthProvider,
+  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
+  signOut
+} from 'firebase/auth';
 import { 
   getFirestore, 
   Firestore, 
@@ -34,8 +45,14 @@ export class FirebaseManager {
   private currentUser: User | null = null;
   private authStateListeners: Array<(user: User | null) => void> = [];
   private isOnline: boolean = navigator.onLine;
+  private googleProvider: GoogleAuthProvider;
   
   private constructor() {
+    // Initialize Google Auth Provider
+    this.googleProvider = new GoogleAuthProvider();
+    this.googleProvider.addScope('email');
+    this.googleProvider.addScope('profile');
+    
     // Listen for online/offline events
     window.addEventListener('online', () => {
       this.isOnline = true;
@@ -134,6 +151,100 @@ export class FirebaseManager {
       console.error('[Firebase] ❌ Anonymous authentication failed:', error);
       throw error;
     }
+  }
+
+  /**
+   * Sign in with Google (popup method)
+   */
+  async signInWithGoogle(): Promise<User> {
+    try {
+      const services = await this.getServices();
+      const result = await signInWithPopup(services.auth, this.googleProvider);
+      console.log('[Firebase] ✅ Google authentication successful');
+      return result.user;
+    } catch (error) {
+      console.error('[Firebase] ❌ Google authentication failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Sign in with Google (redirect method - for mobile)
+   */
+  async signInWithGoogleRedirect(): Promise<void> {
+    try {
+      const services = await this.getServices();
+      await signInWithRedirect(services.auth, this.googleProvider);
+      console.log('[Firebase] ✅ Google redirect initiated');
+    } catch (error) {
+      console.error('[Firebase] ❌ Google redirect failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get redirect result (call after page load if using redirect)
+   */
+  async getRedirectResult(): Promise<User | null> {
+    try {
+      const services = await this.getServices();
+      const result = await getRedirectResult(services.auth);
+      if (result) {
+        console.log('[Firebase] ✅ Google redirect authentication successful');
+        return result.user;
+      }
+      return null;
+    } catch (error) {
+      console.error('[Firebase] ❌ Google redirect result failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Sign out current user
+   */
+  async signOut(): Promise<void> {
+    try {
+      const services = await this.getServices();
+      await signOut(services.auth);
+      console.log('[Firebase] ✅ Sign out successful');
+    } catch (error) {
+      console.error('[Firebase] ❌ Sign out failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Link anonymous account with Google account
+   */
+  async linkWithGoogle(): Promise<User> {
+    try {
+      const services = await this.getServices();
+      if (!this.currentUser) {
+        throw new Error('No user to link');
+      }
+      
+      const result = await signInWithPopup(services.auth, this.googleProvider);
+      console.log('[Firebase] ✅ Account linking successful');
+      return result.user;
+    } catch (error) {
+      console.error('[Firebase] ❌ Account linking failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Check if current user is anonymous
+   */
+  isAnonymous(): boolean {
+    return this.currentUser?.isAnonymous ?? false;
+  }
+
+  /**
+   * Check if current user has Google account linked
+   */
+  hasGoogleAccount(): boolean {
+    return this.currentUser?.providerData.some(provider => provider.providerId === 'google.com') ?? false;
   }
 
   /**
@@ -240,8 +351,12 @@ export const debugFirebase = {
   getServices: () => firebaseManager.getServices(),
   getCurrentUser: () => firebaseManager.getCurrentUser(),
   signInAnonymously: () => firebaseManager.signInAnonymously(),
+  signInWithGoogle: () => firebaseManager.signInWithGoogle(),
+  signOut: () => firebaseManager.signOut(),
   isOnline: () => firebaseManager.isOnlineStatus(),
-  isAuthenticated: () => firebaseManager.isAuthenticated()
+  isAuthenticated: () => firebaseManager.isAuthenticated(),
+  isAnonymous: () => firebaseManager.isAnonymous(),
+  hasGoogleAccount: () => firebaseManager.hasGoogleAccount()
 };
 
 // Make debug functions available in browser console
