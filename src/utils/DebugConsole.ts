@@ -156,6 +156,24 @@ export function setupDebugConsole(game: Game): void {
     audioManager.startBackgroundMusic();
     console.log(`🎵 Music volume set to ${volume} and music started`);
   };
+  (window as any).testFadeEffects = () => {
+    console.log('🎵 Testing fade effects (should eliminate clicking)...');
+    console.log('Playing sounds with 50ms fade-in and 100ms fade-out:');
+    audioManager.playSound('drop');
+    setTimeout(() => audioManager.playSound('place-good'), 200);
+    setTimeout(() => audioManager.playSound('place-perfect'), 400);
+    setTimeout(() => audioManager.playSound('wobble'), 600);
+    setTimeout(() => audioManager.playSound('collapse'), 800);
+    setTimeout(() => audioManager.playSound('level-complete'), 1000);
+  };
+  (window as any).testRapidSounds = () => {
+    console.log('🎵 Testing rapid sound playback (stress test for fade system)...');
+    for (let i = 0; i < 10; i++) {
+      setTimeout(() => {
+        audioManager.playSound('drop');
+      }, i * 100);
+    }
+  };
 
   // === Settings Debug Functions ===
   (window as any).debugSettings = () => {
