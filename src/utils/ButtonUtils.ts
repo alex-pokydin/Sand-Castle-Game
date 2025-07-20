@@ -14,6 +14,7 @@ export interface ButtonConfig {
 
 /**
  * Creates a kid-friendly button with animations and touch feedback
+ * Positioned at absolute screen coordinates
  */
 export function createKidFriendlyButton(
   scene: Scene,
@@ -106,6 +107,108 @@ export function createKidFriendlyButton(
   });
 
   return container;
+}
+
+/**
+ * Creates a kid-friendly button within a container
+ * Positioned relative to the container's origin
+ */
+export function createKidFriendlyButtonInContainer(
+  scene: Scene,
+  container: Phaser.GameObjects.Container,
+  x: number,
+  y: number,
+  textKey: string,
+  config: ButtonConfig,
+  onClick: () => void,
+  variables?: Record<string, any>
+): Phaser.GameObjects.Container {
+  const {
+    primaryColor,
+    hoverColor,
+    scale = 1,
+    width = 280,
+    height = 70,
+    fontSize = 28,
+    borderRadius = 20,
+    borderWidth = 4
+  } = config;
+
+  const buttonContainer = scene.add.container(0, 0); // Create at origin
+  const buttonWidth = width * scale;
+  const buttonHeight = height * scale;
+
+  // Button background with rounded corners
+  const background = scene.add.graphics();
+  background.fillStyle(primaryColor);
+  background.fillRoundedRect(-buttonWidth/2, -buttonHeight/2, buttonWidth, buttonHeight, borderRadius);
+  
+  // White border for definition
+  background.lineStyle(borderWidth, 0xFFFFFF);
+  background.strokeRoundedRect(-buttonWidth/2, -buttonHeight/2, buttonWidth, buttonHeight, borderRadius);
+
+  // Button text
+  const buttonText = scene.add.text(0, 0, variables ? tSync(textKey, variables) : tSync(textKey), {
+    fontSize: `${fontSize * scale}px`,
+    fontFamily: 'Arial, sans-serif',
+    color: '#FFFFFF',
+    fontStyle: 'bold',
+    shadow: {
+      offsetX: 2,
+      offsetY: 2,
+      color: '#000000',
+      blur: 2,
+      fill: true
+    }
+  });
+  buttonText.setOrigin(0.5);
+
+  buttonContainer.add([background, buttonText]);
+
+  // Interactive area with generous touch target
+  buttonContainer.setSize(buttonWidth + 20, buttonHeight + 20);
+  buttonContainer.setInteractive();
+
+  // Button animations
+  buttonContainer.on('pointerover', () => {
+    background.clear();
+    background.fillStyle(hoverColor);
+    background.fillRoundedRect(-buttonWidth/2, -buttonHeight/2, buttonWidth, buttonHeight, borderRadius);
+    background.lineStyle(borderWidth, 0xFFFFFF);
+    background.strokeRoundedRect(-buttonWidth/2, -buttonHeight/2, buttonWidth, buttonHeight, borderRadius);
+    
+    buttonContainer.setScale(1.05);
+  });
+
+  buttonContainer.on('pointerout', () => {
+    background.clear();
+    background.fillStyle(primaryColor);
+    background.fillRoundedRect(-buttonWidth/2, -buttonHeight/2, buttonWidth, buttonHeight, borderRadius);
+    background.lineStyle(borderWidth, 0xFFFFFF);
+    background.strokeRoundedRect(-buttonWidth/2, -buttonHeight/2, buttonWidth, buttonHeight, borderRadius);
+    
+    buttonContainer.setScale(1);
+  });
+
+  buttonContainer.on('pointerdown', () => {
+    buttonContainer.setScale(0.95);
+    
+    // Click animation
+    scene.tweens.add({
+      targets: buttonContainer,
+      scaleX: 1.1,
+      scaleY: 1.1,
+      duration: 100,
+      yoyo: true,
+      onComplete: onClick
+    });
+  });
+
+  // Position the button container within the parent container
+  buttonContainer.setPosition(x, y);
+  container.add(buttonContainer);
+
+  return buttonContainer;
 }
 
 /**

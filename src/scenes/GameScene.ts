@@ -56,6 +56,11 @@ export class GameScene extends Scene {
   init(data?: any): void {
     // Handle continuation from level complete scene
     if (data?.continueFromLevel) {
+      console.log('Continuing to next level - cleaning up and resetting');
+      
+      // Clean up existing game objects and physics bodies
+      this.cleanupGameObjects();
+      
       this.gameState.currentLevel = data.currentLevel || 1;
       this.gameState.score = data.totalScore || 0;
       this.currentLevelIndex = this.gameState.currentLevel - 1;
@@ -73,10 +78,42 @@ export class GameScene extends Scene {
       this.totalPartsDropped = 0;
       this.groundViolations = [];
       this.gameState.isFirstPart = true;
+      
+      // Ensure game is active and input is enabled
+      this.gameState.isGameActive = true;
+      this.input.enabled = true;
+    } else {
+      // Reset game state for new game
+      console.log('Starting new game - resetting all game state');
+      
+      // Clean up existing game objects and physics bodies
+      this.cleanupGameObjects();
+      
+      this.gameState = {
+        currentLevel: 1,
+        score: 0,
+        lives: 3,
+        droppedParts: [],
+        isGameActive: true,
+        isFirstPart: true
+      };
+      this.currentLevelIndex = 0;
+      this.droppedParts = [];
+      this.currentPart = undefined;
+      this.partSpeed = GAME_CONFIG.partSpeed;
+      this.direction = 1;
+      this.groundViolations = [];
+      this.totalPartsDropped = 0;
+      this.overallPartsPlaced = 0;
+      this.successfulPartsInstalled = 0;
+      this.wrongPartsCurrentLevel = 0;
+      this.totalSuccessfulPlaced = 0;
+      this.rewardedCastleCount = 0;
     }
   }
 
   async create(): Promise<void> {
+    console.log('GameScene create() called');
     // Initialize i18n system
     await initI18n();
 
@@ -99,6 +136,7 @@ export class GameScene extends Scene {
     this.createUI();
     this.setupInput();
     this.setupMobileOptimizations();
+    this.updateUI(); // Ensure UI reflects current game state
     this.spawnNextPart();
   }
 
@@ -108,6 +146,38 @@ export class GameScene extends Scene {
       offLanguageChange(this.languageChangeHandler);
       this.languageChangeHandler = undefined;
     }
+  }
+
+  private cleanupGameObjects(): void {
+    console.log('Cleaning up existing game objects and physics bodies');
+    
+    // Clean up current part
+    if (this.currentPart) {
+      this.currentPart.destroy();
+      this.currentPart = undefined;
+    }
+    
+    // Clean up all dropped parts
+    this.droppedParts.forEach(part => {
+      if (part && part.destroy) {
+        part.destroy();
+      }
+    });
+    this.droppedParts = [];
+    
+    // Clear all physics bodies except the ground
+    const bodies = this.matter.world.getAllBodies();
+    bodies.forEach(body => {
+      // Don't destroy the ground body or world bounds
+      if (body && !body.isStatic && body.label !== 'ground') {
+        this.matter.world.remove(body);
+      }
+    });
+    
+    // Clear any existing tweens
+    this.tweens.killAll();
+    
+    console.log('Game objects cleanup completed');
   }
 
   private createBackground(): void {
@@ -172,17 +242,19 @@ export class GameScene extends Scene {
     this.rewardCountText = this.add.text(20, 210, `Castles Rewarded: 0`, statsTextStyle);
     this.wrongLevelText = this.add.text(20, 240, `Wrong Parts: 0`, statsTextStyle);
 
-    // Instructions - clear and encouraging
+    // Instructions - subtle and encouraging
     this.instructionText = this.add.text(
       this.scale.width / 2,
       this.scale.height - 100,
-      tSync('Tap anywhere to drop the moving part') + '\n' + tSync('Level 1 parts go on the ground'),
+      tSync('Tap to drop parts!') + '\n' + 
+      tSync('Level 1 on ground, higher levels on top') + '\n' +
+      tSync('Level 6 parts create castles for bonus!'),
       {
-        fontSize: '18px',
+        fontSize: '16px',
         color: '#34495E',
         fontFamily: 'Arial, sans-serif',
         align: 'center',
-        backgroundColor: '#FFFFFF',
+        backgroundColor: '#F8F9FA',
         padding: { x: 10, y: 8 },
         stroke: '#BDC3C7',
         strokeThickness: 1
@@ -499,9 +571,11 @@ export class GameScene extends Scene {
   }
 
   private spawnNextPart(): void {
+    console.log('spawnNextPart called - gameState.isGameActive:', this.gameState.isGameActive);
     if (!this.gameState.isGameActive) return;
 
     const currentLevel = LEVELS[this.currentLevelIndex] || generateLevel(this.currentLevelIndex + 1);
+    console.log('spawnNextPart - currentLevel:', currentLevel, 'currentLevelIndex:', this.currentLevelIndex);
     if (!currentLevel) return;
 
     // Smart spawning: determine available part levels based on current castle (now via PartUtils)
@@ -901,7 +975,7 @@ export class GameScene extends Scene {
     if (this.livesText) {
       const currentLevel = LEVELS[this.currentLevelIndex];
       const partsLeft = currentLevel ? Math.max(0, currentLevel.targetParts - this.successfulPartsInstalled) : 0;
-      this.livesText.setText(tSync('Parts Remaining: {{count}}', { count: partsLeft }));
+      this.livesText.setText(tSync('Target: {{target}} parts', { target: partsLeft }));
     }
 
     // Update stats texts
@@ -988,8 +1062,9 @@ export class GameScene extends Scene {
     // Update all UI text elements when language changes
     if (this.instructionText) {
       this.instructionText.setText(
-        tSync('Tap anywhere to drop the moving part') + '\n' +
-        tSync('Level 1 parts go on the ground')
+        tSync('Tap to drop parts!') + '\n' + 
+        tSync('Level 1 on ground, higher levels on top') + '\n' +
+        tSync('Level 6 parts create castles for bonus!')
       );
     }
 

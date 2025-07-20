@@ -10,10 +10,33 @@ alwaysApply: true
 **Code Duplication Prevention**: 
 - **HIGH PRIORITY**: Always use existing helper functions from `src/utils/` instead of duplicating code
 - **TextUtils**: Use `createResponsiveText()`, `createResponsiveTitle()`, `createCenteredResponsiveText()` for all text creation
-- **ButtonUtils**: Use `createKidFriendlyButton()` for all button creation
+- **ButtonUtils**: Use `createKidFriendlyButton()` for screen-positioned buttons, `createKidFriendlyButtonInContainer()` for container-based buttons
+- **ConfirmationDialog**: Use `ConfirmationDialog` component for all confirmation dialogs throughout the game
 - **Predefined Configs**: Use `TEXT_CONFIGS` and `BUTTON_CONFIGS` for consistent styling
 - **DRY Principle**: If you find yourself writing similar code in multiple places, create a helper function
 - **Refactor Existing Code**: When modifying scenes, replace direct text/button creation with helper functions
+
+**Button Positioning Guidelines**:
+- **Screen Buttons**: Use `createKidFriendlyButton()` for buttons positioned directly on the scene
+- **Container Buttons**: Use `createKidFriendlyButtonInContainer()` for buttons within containers (dialogs, menus, etc.)
+- **Positioning**: Container buttons are positioned relative to the container's origin (0,0)
+- **Spacing**: Use appropriate spacing between buttons (typically 90-120px for dialog buttons)
+
+**Confirmation Dialog Component**:
+- **Reusable Component**: Use `ConfirmationDialog` from `src/utils/ConfirmationDialog.ts` for all confirmation dialogs
+- **Configuration**: Pass options object with title, message, button text, colors, and callbacks
+- **Consistent Styling**: Automatically uses consistent button styling and animations
+- **Automatic Cleanup**: Handles its own cleanup when confirmed or cancelled
+- **Usage Example**:
+```typescript
+new ConfirmationDialog(scene, {
+  title: tSync('Confirm Action'),
+  message: tSync('Are you sure?'),
+  onConfirm: () => handleConfirm(),
+  onCancel: () => handleCancel()
+}).show();
+```
+
 **Development**: Do not use `npm run dev` to run the project, as it is already running.
 
 **Debugging**: When debugging, use the console.log() function to print messages to the console. User will be able to see the messages and provide feedback.

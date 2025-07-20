@@ -11,13 +11,21 @@ export class MenuScene extends Scene {
   private decorativeElements: Phaser.GameObjects.GameObject[] = [];
   private isGamePaused: boolean = false;
   private languageChangeHandler?: (lang: any) => void;
-  private pauseData?: { isPaused: boolean };
+  private pauseData?: { 
+    isPaused: boolean; 
+    fromLevelComplete?: boolean;
+    levelData?: { level: number; totalScore: number };
+  };
   
   constructor() {
     super({ key: 'MenuScene' });
   }
 
-  init(data?: { isPaused: boolean }): void {
+  init(data?: { 
+    isPaused: boolean; 
+    fromLevelComplete?: boolean;
+    levelData?: { level: number; totalScore: number };
+  }): void {
     console.log('MenuScene init called with data:', data);
     this.pauseData = data;
   }
@@ -37,8 +45,12 @@ export class MenuScene extends Scene {
   }
 
   async create(): Promise<void> {
-    // Check if we're coming from a paused game - use passed data or fallback to scene check
-    this.isGamePaused = this.pauseData?.isPaused || (this.scene.isActive('GameScene') && this.scene.isPaused('GameScene'));
+    // Check if we're coming from a paused game or level complete scene
+    this.isGamePaused = this.pauseData?.isPaused || this.pauseData?.fromLevelComplete || false;
+    
+    // Show pause menu if:
+    // 1. We have explicit pause data (from pause button)
+    // 2. We're coming from level complete scene (to show New Game button)
     
     // Ensure language is fully set before creating UI
     const currentLang = getCurrentLanguage();
@@ -132,39 +144,76 @@ export class MenuScene extends Scene {
     const buttonSpacing = 100;
 
     if (this.isGamePaused) {
-      // Resume Button - Large and prominent (green)
-      this.playButton = this.createKidFriendlyButton(
-        this.scale.width / 2,
-        buttonY,
-        tSync('Resume Game'),
-        0x27AE60, // Green
-        0x2ECC71,
-        () => this.resumeGame()
-      );
+      // Check if we're coming from level complete scene
+      if (this.pauseData?.fromLevelComplete) {
+        // Continue Current Game Button - Large and prominent (green)
+        this.playButton = this.createKidFriendlyButton(
+          this.scale.width / 2,
+          buttonY,
+          tSync('Continue Game'),
+          0x27AE60, // Green
+          0x2ECC71,
+          () => this.continueCurrentGame()
+        );
 
-      // New Game Button - Secondary option (orange)
-      const newGameButton = this.createKidFriendlyButton(
-        this.scale.width / 2,
-        buttonY + buttonSpacing,
-        tSync('New Game'),
-        0xE67E22, // Orange
-        0xF39C12,
-        () => this.startGame(),
-        0.8 // Slightly smaller
-      );
+        // New Game Button - Secondary option (orange)
+        const newGameButton = this.createKidFriendlyButton(
+          this.scale.width / 2,
+          buttonY + buttonSpacing,
+          tSync('New Game'),
+          0xE67E22, // Orange
+          0xF39C12,
+          () => this.startGame(),
+          0.8 // Slightly smaller
+        );
 
-      // Settings Button - Smaller
-      this.settingsButton = this.createKidFriendlyButton(
-        this.scale.width / 2,
-        buttonY + buttonSpacing * 2,
-        tSync('Settings'),
-        0x3498DB, // Blue
-        0x5DADE2,
-        () => this.openSettings(),
-        0.7 // Smaller
-      );
+        // Settings Button - Smaller
+        this.settingsButton = this.createKidFriendlyButton(
+          this.scale.width / 2,
+          buttonY + buttonSpacing * 2,
+          tSync('Settings'),
+          0x3498DB, // Blue
+          0x5DADE2,
+          () => this.openSettings(),
+          0.7 // Smaller
+        );
 
-      this.setupButtonSounds([this.playButton, newGameButton, this.settingsButton]);
+        this.setupButtonSounds([this.playButton, newGameButton, this.settingsButton]);
+      } else {
+        // Resume Button - Large and prominent (green) for paused game
+        this.playButton = this.createKidFriendlyButton(
+          this.scale.width / 2,
+          buttonY,
+          tSync('Resume Game'),
+          0x27AE60, // Green
+          0x2ECC71,
+          () => this.resumeGame()
+        );
+
+        // New Game Button - Secondary option (orange)
+        const newGameButton = this.createKidFriendlyButton(
+          this.scale.width / 2,
+          buttonY + buttonSpacing,
+          tSync('New Game'),
+          0xE67E22, // Orange
+          0xF39C12,
+          () => this.startGame(),
+          0.8 // Slightly smaller
+        );
+
+        // Settings Button - Smaller
+        this.settingsButton = this.createKidFriendlyButton(
+          this.scale.width / 2,
+          buttonY + buttonSpacing * 2,
+          tSync('Settings'),
+          0x3498DB, // Blue
+          0x5DADE2,
+          () => this.openSettings(),
+          0.7 // Smaller
+        );
+
+        this.setupButtonSounds([this.playButton, newGameButton, this.settingsButton]);
+      }
     } else {
       // Play Button - Large and prominent
       this.playButton = this.createKidFriendlyButton(
@@ -453,6 +502,25 @@ export class MenuScene extends Scene {
     
     this.cameras.main.once('camerafadeoutcomplete', () => {
       this.scene.start('GameScene');
+    });
+  }
+
+  private continueCurrentGame(): void {
+    // Transition to GameScene to continue from where we left off
+    this.cameras.main.fadeOut(300, 0, 0, 0);
+    
+    this.cameras.main.once('camerafadeoutcomplete', () => {
+      // Continue the current game by starting the next level
+      if (this.pauseData?.levelData) {
+        this.scene.start('GameScene', {
+          continueFromLevel: true,
+          currentLevel: this.pauseData.levelData.level + 1, // Continue to next level
+          totalScore: this.pauseData.levelData.totalScore
+        });
+      } else {
+        // Fallback to starting a new game if no level data
+        this.scene.start('GameScene');
+      }
     });
   }
 

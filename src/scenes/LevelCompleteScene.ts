@@ -1,5 +1,6 @@
 import { Scene } from 'phaser';
 import { supportsVibration } from '@/utils/DeviceUtils';
+import { tSync } from '@/i18n';
 import { 
   createResponsiveTitle, 
   createResponsiveSubtitle, 
@@ -8,6 +9,7 @@ import {
   TEXT_CONFIGS 
 } from '@/utils/TextUtils';
 import { createKidFriendlyButton, BUTTON_CONFIGS } from '@/utils/ButtonUtils';
+import { ConfirmationDialog } from '@/utils/ConfirmationDialog';
 
 interface LevelCompleteData {
   level: number;
@@ -21,6 +23,7 @@ export class LevelCompleteScene extends Scene {
   private levelData?: LevelCompleteData;
   private backgroundGradient?: Phaser.GameObjects.Graphics;
   private celebrationElements: Phaser.GameObjects.GameObject[] = [];
+  private confirmationDialog?: ConfirmationDialog;
   
   constructor() {
     super({ key: 'LevelCompleteScene' });
@@ -170,14 +173,14 @@ export class LevelCompleteScene extends Scene {
       () => this.continueToNextLevel()
     );
 
-    // Main menu button (secondary action)
+    // Finish game button (secondary action)
     createKidFriendlyButton(
       this,
       this.scale.width / 2,
       buttonY + spacing,
-      'Main Menu',
+      'Finish Game',
       BUTTON_CONFIGS.SECONDARY,
-      () => this.goToMainMenu()
+      () => this.finishGame()
     );
   }
 
@@ -296,12 +299,34 @@ export class LevelCompleteScene extends Scene {
     });
   }
 
-  private goToMainMenu(): void {
-    // Fade out and go to main menu
+  private finishGame(): void {
+    // Show confirmation dialog before finishing game
+    this.showFinishGameConfirmation();
+  }
+
+  private showFinishGameConfirmation(): void {
+    this.confirmationDialog = new ConfirmationDialog(this, {
+      title: tSync('Finish Game?'),
+      message: tSync('Your progress will be lost.'),
+      confirmText: tSync('Yes'),
+      cancelText: tSync('No'),
+      onConfirm: () => this.confirmFinishGame(),
+      onCancel: () => this.cancelFinishGame()
+    });
+    
+    this.confirmationDialog.show();
+  }
+
+  private confirmFinishGame(): void {
+    // Fade out and go to main menu to start fresh
     this.cameras.main.fadeOut(300);
     this.cameras.main.once('camerafadeoutcomplete', () => {
       this.scene.start('MenuScene');
     });
+  }
+
+  private cancelFinishGame(): void {
+    // Dialog is automatically cleaned up by the component
   }
 
   shutdown(): void {
@@ -312,5 +337,11 @@ export class LevelCompleteScene extends Scene {
       }
     });
     this.celebrationElements = [];
+
+    // Clean up confirmation dialog
+    if (this.confirmationDialog) {
+      this.confirmationDialog.destroy();
+      this.confirmationDialog = undefined;
+    }
   }
 } 
