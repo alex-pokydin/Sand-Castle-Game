@@ -4,7 +4,7 @@
   "type": "module",
   "dependencies": {
     "@types/matter-js": "^0.19.8",
-    "firebase": "^10.0.0",
+    "firebase": "^12.0.0",
     "matter-js": "^0.20.0",
     "phaser": "^3.70.0",
     "phaser-matter-collision-plugin": "^1.0.0",
