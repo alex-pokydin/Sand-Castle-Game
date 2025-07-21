@@ -373,15 +373,17 @@ export class MenuScene extends BaseScene {
    * Create user profile display at the bottom of the scene
    */
   private createUserProfileDisplay(): void {
-    // Create user button with full style at the bottom of the scene
+    // Create user button with chip style for a modern, compact look
     this.userButton = createUserButton(this, {
       x: this.scale.width / 2,
       y: this.scale.height * 0.95,
-      width: 250,
-      height: 50,
-      style: 'full',
+      height: 45,
+      style: 'chip',
       showName: true,
       showPicture: true,
+      minWidth: 150,
+      maxWidth: 250,
+      padding: 15,
       onClick: () => {
         // Optional: Navigate to settings or show user menu
         console.log('[MenuScene] User button clicked');
