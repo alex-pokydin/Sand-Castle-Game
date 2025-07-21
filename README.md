@@ -561,7 +561,10 @@ sand-castle-game/
 │   │       ├── en.ts         # English locale settings (minimal)
 │   │       └── ua.ts         # Ukrainian translations
 │   ├── components/            # Reusable UI components
-│   │   └── UserButton.ts     # User profile display component
+│   │   ├── Button.ts         # Button component with animations
+│   │   ├── Text.ts           # Responsive text component
+│   │   ├── UserButton.ts     # User profile display component
+│   │   └── ConfirmationDialog.ts # Confirmation dialog component
 │   ├── scenes/
 │   │   ├── MenuScene.ts      # Main menu
 │   │   ├── GameScene.ts      # Core gameplay
@@ -766,8 +769,10 @@ const isMoving = (part: CastlePartData) =>
 src/
 ├── main.ts                    # Entry point
 ├── config/                    # Game configuration
-│   ├── gameConfig.ts         # Phaser game config
-│   └── constants.ts          # Game constants
+│   ├── ColorConfig.ts        # Centralized color definitions
+│   ├── TextConfig.ts         # Centralized text definitions
+│   ├── gameConfig.ts         # Game-specific settings
+│   └── phaserConfig.ts       # Phaser engine settings
 ├── i18n/                      # Internationalization
 │   ├── index.ts              # Translation system core
 │   ├── detect.ts             # Language detection
@@ -776,10 +781,14 @@ src/
 │   ├── MenuScene.ts
 │   ├── GameScene.ts
 │   └── GameOverScene.ts
-├── objects/                   # Game objects (matches File Structure above)
+├── objects/                   # Game objects
 │   ├── CastlePart.ts
-│   ├── Castle.ts
 │   └── StabilityManager.ts
+├── components/                # Reusable UI components
+│   ├── Button.ts             # Button component with animations
+│   ├── Text.ts               # Responsive text component
+│   ├── UserButton.ts         # User profile display component
+│   └── ConfirmationDialog.ts # Confirmation dialog component
 ├── utils/                     # Utilities
 │   ├── AudioManager.ts
 │   ├── FirebaseConfig.ts

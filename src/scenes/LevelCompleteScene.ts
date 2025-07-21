@@ -8,7 +8,7 @@ import {
   TEXT_CONFIGS 
 } from '@/utils/TextUtils';
 import { createKidFriendlyButton, BUTTON_CONFIGS } from '@/utils/ButtonUtils';
-import { ConfirmationDialog } from '@/utils/ConfirmationDialog';
+import { ConfirmationDialog } from '@/components/ConfirmationDialog';
 import { BaseScene } from '@/scenes/BaseScene';
 
 interface LevelCompleteData {

@@ -14,50 +14,17 @@ sand-castle-game/
 │   ├── main.ts                # 🎮 Pure entry point - game orchestration only
 │   ├── scenes.ts              # 🎭 Scene registry - add new scenes here
 │   ├── types/                 # TypeScript type definitions
-│   │   ├── Game.ts           # Game-specific types and interfaces
-│   │   └── Physics.ts        # Physics-related types and constants
-│   ├── i18n/                  # Internationalization system
-│   │   ├── index.ts          # Translation system core and management
-│   │   ├── detect.ts         # Language detection and mapping
-│   │   └── translations/     # Language-specific translation files
-│   │       ├── en.ts         # English locale settings (minimal)
-│   │       └── ua.ts         # Ukrainian translations (complete)
-│   ├── scenes/               # Phaser game scenes
-│   │   ├── BaseScene.ts      # 🏗️ Abstract base class - extend for all scenes
-│   │   ├── MenuScene.ts      # Main menu with navigation
-│   │   ├── GameScene.ts      # Core gameplay mechanics
-│   │   ├── GameOverScene.ts  # Game over and victory screens
-│   │   ├── LevelCompleteScene.ts # Level completion celebration
-│   │   └── SettingsScene.ts  # Settings and language selection
-│   ├── objects/              # Game object classes
-│   │   ├── CastlePart.ts     # Castle part physics and rendering
-│   │   └── StabilityManager.ts # Physics stability calculations
-│   ├── components/           # Reusable UI components
-│   │   └── UserButton.ts     # User profile display component
-│   ├── utils/                # Utility functions and helpers
-│   │   ├── AudioManager.ts   # Audio management with state persistence
-│   │   ├── PartUtils.ts      # Part spawning and sizing utilities
-│   │   ├── DeviceUtils.ts    # Device detection and capabilities
-│   │   ├── TextUtils.ts      # Responsive text creation helpers
-│   │   ├── ButtonUtils.ts    # Button creation and styling helpers
-│   │   ├── ConfirmationDialog.ts # Reusable confirmation dialog component
-│   │   ├── PhaserStateManager.ts # Game state persistence and restoration
-│   │   ├── SettingsManager.ts # Settings persistence and management
-│   │   ├── PWAManager.ts     # Progressive web app functionality
-│   │   ├── SystemInitializer.ts # 🚀 System orchestration and initialization
-│   │   ├── DebugConsole.ts   # 🔧 Development debug functions
-│   │   ├── MobileEventHandlers.ts # 📱 Mobile-specific event handling
-│   │   └── GameEventHandlers.ts # ⚡ Game event management
-│   └── config/               # Game configuration
-│       ├── gameConfig.ts     # Game settings, levels, and constants
-│       └── phaserConfig.ts   # ⚙️ Phaser.js engine configuration
-├── public/                   # Static assets
+│   ├── i18n/                  # Internationalization system & Translations
+│   ├── scenes/                # Phaser game scenes
+│   ├── objects/               # Game object classes
+│   ├── components/            # Reusable UI components
+│   ├── utils/                 # Utility functions and helpers
+│   └── config/                # Configuration files
+├── public/                    # Static assets
 │   ├── favicon.ico
-│   ├── manifest.json         # PWA manifest
-│   └── assets/               # Game assets
-│       ├── castle-parts.svg  # Castle part graphics
-│       └── sounds/           # Audio files
-└── firebase.json             # Firebase configuration
+│   ├── manifest.json          # PWA manifest
+│   └── assets/                # Game assets
+└── firebase.json              # Firebase configuration
 ```
 
 ## 🏗️ Architecture Overview
@@ -75,6 +42,8 @@ sand-castle-game/
 - `src/scenes.ts` - Scene registry (add new scenes here)
 
 #### **Configuration**
+- `src/config/ColorConfig.ts` - Centralized color definitions and utilities
+- `src/config/TextConfig.ts` - Centralized text definitions and utilities
 - `src/config/phaserConfig.ts` - Phaser engine settings (resolution, physics, etc.)
 - `src/config/gameConfig.ts` - Game-specific settings (levels, gameplay constants)
 
