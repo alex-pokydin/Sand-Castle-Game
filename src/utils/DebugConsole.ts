@@ -6,6 +6,8 @@ import { phaserStateManager } from '@/utils/PhaserStateManager';
 import { debugI18n, testSetLanguage, testTranslation, clearSavedLanguage, testSystemLanguageDetection, checkMissingTranslations } from '@/i18n';
 import { debugPhaserState } from '@/utils/PhaserStateManager';
 import { SCENES, getAllScenes, isValidScene } from '@/scenes';
+import { debugFirebase } from '@/utils/FirebaseConfig';
+import { debugFirebaseService } from '@/utils/FirebaseService';
 
 /**
  * Debug Console Functions
@@ -74,6 +76,41 @@ export function setupDebugConsole(game: Game): void {
     console.log('🗑️ Clearing state and restarting...');
     phaserStateManager.clearGameState(game);
     game.scene.start('MenuScene');
+  };
+
+  // === Firebase Debug Functions ===
+  (window as any).debugFirebase = debugFirebase;
+  (window as any).debugFirebaseService = debugFirebaseService;
+  
+  // === User Profile Debug Functions ===
+  (window as any).testUserButton = () => {
+    const currentScene = game.scene.getScene('MenuScene');
+    if (currentScene && (currentScene as any).userButton) {
+      console.log('👤 Testing user button...');
+      (currentScene as any).userButton.refreshAuthState();
+    } else {
+      console.log('❌ MenuScene not found or userButton not available');
+    }
+  };
+  
+  (window as any).hideUserButton = () => {
+    const currentScene = game.scene.getScene('MenuScene');
+    if (currentScene && (currentScene as any).userButton) {
+      console.log('👤 Hiding user button...');
+      (currentScene as any).userButton.hide();
+    } else {
+      console.log('❌ MenuScene not found or userButton not available');
+    }
+  };
+  
+  (window as any).showUserButton = () => {
+    const currentScene = game.scene.getScene('MenuScene');
+    if (currentScene && (currentScene as any).userButton) {
+      console.log('👤 Showing user button...');
+      (currentScene as any).userButton.show();
+    } else {
+      console.log('❌ MenuScene not found or userButton not available');
+    }
   };
 
   // === Scene Debug Functions ===

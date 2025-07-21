@@ -15,13 +15,15 @@ import { GameScene } from '@/scenes/GameScene';
 import { GameOverScene } from '@/scenes/GameOverScene';
 import { LevelCompleteScene } from '@/scenes/LevelCompleteScene';
 import { SettingsScene } from '@/scenes/SettingsScene';
+import { LeaderboardScene } from '@/scenes/LeaderboardScene';
 
 export const SCENES: Record<string, typeof BaseScene> = {
   'MenuScene': MenuScene,
   'GameScene': GameScene,
   'GameOverScene': GameOverScene,
   'LevelCompleteScene': LevelCompleteScene,
-  'SettingsScene': SettingsScene
+  'SettingsScene': SettingsScene,
+  'LeaderboardScene': LeaderboardScene
 };
 
 // Export scene keys for convenience

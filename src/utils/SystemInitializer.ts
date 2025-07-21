@@ -5,6 +5,9 @@ import { PWAManager } from '@/utils/PWAManager';
 import { AudioManager } from '@/utils/AudioManager';
 import { SettingsManager } from '@/utils/SettingsManager';
 import { phaserStateManager } from '@/utils/PhaserStateManager';
+import { firebaseManager } from '@/utils/FirebaseConfig';
+import { firebaseService } from '@/utils/FirebaseService';
+import { cloudSaveManager } from '@/utils/CloudSaveManager';
 import { setupDebugConsole } from '@/utils/DebugConsole';
 import { setupMobileEventHandlers } from '@/utils/MobileEventHandlers';
 import { setupGameEventHandlers } from '@/utils/GameEventHandlers';
@@ -21,6 +24,7 @@ export class SystemInitializer {
   private pwaManager: PWAManager;
   private audioManager: AudioManager;
   private settingsManager: SettingsManager;
+  private isFirebaseEnabled: boolean = true;
 
   constructor(game: Game) {
     this.game = game;
@@ -75,6 +79,7 @@ export class SystemInitializer {
       this.initializeAudioSystem(),
       this.initializeSettingsSystem(),
       this.initializePWASystem(),
+      this.initializeFirebaseSystem(),
       // Wait a small delay to ensure all systems are stable
       new Promise<void>((resolve) => setTimeout(resolve, 100))
     ]);
@@ -130,6 +135,63 @@ export class SystemInitializer {
   }
 
   /**
+   * Initialize Firebase and related systems
+   */
+  private async initializeFirebaseSystem(): Promise<void> {
+    if (!this.isFirebaseEnabled) {
+      console.log('[SystemInit] 📴 Firebase disabled, skipping');
+      return;
+    }
+
+    try {
+      // Initialize Firebase services
+      await firebaseManager.initialize();
+      console.log('[SystemInit] ✅ Firebase config ready');
+
+      // Initialize cloud save manager
+      cloudSaveManager.initialize(this.game, {
+        autoSave: true,
+        saveInterval: 30000, // 30 seconds
+        maxSaves: 5
+      });
+      console.log('[SystemInit] ✅ Cloud save manager ready');
+
+      // Initialize social manager
+      // (no initialization needed, it's ready by default)
+      console.log('[SystemInit] ✅ Social manager ready');
+
+      // Check for Google authentication redirect result first
+      try {
+        const redirectUser = await firebaseService.getRedirectResult();
+        if (redirectUser) {
+          console.log('[SystemInit] ✅ Google authentication redirect successful');
+          
+          // Attempt cloud sync
+          await cloudSaveManager.syncWithCloud();
+          console.log('[SystemInit] ✅ Cloud sync completed');
+        } else {
+          // Try anonymous authentication for cloud features
+          await firebaseService.signInAnonymously();
+          console.log('[SystemInit] ✅ Anonymous authentication successful');
+          
+          // Attempt cloud sync
+          await cloudSaveManager.syncWithCloud();
+          console.log('[SystemInit] ✅ Cloud sync completed');
+        }
+      } catch (authError) {
+        console.warn('[SystemInit] ⚠️ Firebase authentication failed:', authError);
+        // Continue without cloud features
+      }
+
+      console.log('[SystemInit] ✅ Firebase system ready');
+    } catch (error) {
+      console.warn('[SystemInit] ⚠️ Firebase system initialization failed:', error);
+      this.isFirebaseEnabled = false;
+      // Don't block game start if Firebase fails
+    }
+  }
+
+  /**
    * Determine and start the initial scene
    */
   private startInitialScene(): void {
@@ -162,7 +224,7 @@ export class SystemInitializer {
    * Setup debug mode
    */
   private setupDebugMode(): void {
-    if (process.env.NODE_ENV === 'development') {
+    if (import.meta.env.DEV) {
       console.log('[SystemInit] 🔧 Setting up debug mode...');
       setupDebugConsole(this.game);
     }

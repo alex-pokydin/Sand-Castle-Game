@@ -1,6 +1,7 @@
 import { tSync, getCurrentLanguage, setLanguage } from '@/i18n';
 import { phaserStateManager, PhaserGameState } from '@/utils/PhaserStateManager';
 import { BaseScene } from '@/scenes/BaseScene';
+import { createUserButton, UserButton } from '@/components/UserButton';
 
 export class MenuScene extends BaseScene {
   private titleText?: Phaser.GameObjects.Text;
@@ -14,6 +15,9 @@ export class MenuScene extends BaseScene {
     fromLevelComplete?: boolean;
     levelData?: { level: number; totalScore: number };
   };
+  
+  // User profile display
+  private userButton?: UserButton;
   
   constructor() {
     super('MenuScene');
@@ -71,6 +75,7 @@ export class MenuScene extends BaseScene {
     this.createMenuButtons();
     this.createHighScoreDisplay();
     this.createDecorativeElements();
+    this.createUserProfileDisplay();
     
     // Enable auto-save for development persistence
     this.enableAutoSave();
@@ -204,7 +209,18 @@ export class MenuScene extends BaseScene {
         0.8 // Slightly smaller
       );
 
-      this.setupButtonSounds([this.playButton, this.settingsButton]);
+      // Leaderboard Button - Smaller
+      const leaderboardButton = this.createKidFriendlyButton(
+        this.scale.width / 2,
+        buttonY + buttonSpacing * 2,
+        tSync('Leaderboards'),
+        0x9B59B6, // Purple
+        0xAB6FB8,
+        () => this.openLeaderboard(),
+        0.7 // Smaller
+      );
+
+      this.setupButtonSounds([this.playButton, this.settingsButton, leaderboardButton]);
     }
   }
 
@@ -291,8 +307,6 @@ export class MenuScene extends BaseScene {
     return container;
   }
 
-
-
   private createHighScoreDisplay(): void {
     const highScore = this.getHighScore();
     
@@ -353,6 +367,29 @@ export class MenuScene extends BaseScene {
       
       this.decorativeElements.push(sparkle);
     }
+  }
+
+  /**
+   * Create user profile display at the bottom of the scene
+   */
+  private createUserProfileDisplay(): void {
+    // Create user button with full style at the bottom of the scene
+    this.userButton = createUserButton(this, {
+      x: this.scale.width / 2,
+      y: this.scale.height * 0.95,
+      width: 250,
+      height: 50,
+      style: 'full',
+      showName: true,
+      showPicture: true,
+      onClick: () => {
+        // Optional: Navigate to settings or show user menu
+        console.log('[MenuScene] User button clicked');
+      },
+      onAuthStateChanged: (isAuthenticated: boolean, isAnonymous: boolean) => {
+        console.log('[MenuScene] Auth state changed:', { isAuthenticated, isAnonymous });
+      }
+    });
   }
 
   // Mobile optimizations are handled by BaseScene
@@ -437,6 +474,11 @@ export class MenuScene extends BaseScene {
     this.goToSettings();
   }
 
+  private openLeaderboard(): void {
+    // Navigate to leaderboard scene
+    this.transitionToScene('LeaderboardScene');
+  }
+
   /**
    * Override base class method to save menu-specific game state
    */
@@ -494,6 +536,12 @@ export class MenuScene extends BaseScene {
   }
 
   protected customShutdown(): void {
+    // Clean up user button
+    if (this.userButton) {
+      this.userButton.destroy();
+      this.userButton = undefined;
+    }
+
     // Save state before shutting down
     this.saveCurrentState();
     // BaseScene handles language change cleanup automatically

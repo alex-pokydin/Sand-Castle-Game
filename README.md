@@ -29,6 +29,69 @@
 - **Quality over Quantity**: Prioritize polishing existing features over adding new ones
 - **Developer-Player Feedback Loop**: If developers don't enjoy using a feature, redesign it
 
+## 🔐 Google Authentication Setup
+
+The game now supports Google authentication for cloud saves, leaderboards, and cross-device progress sync.
+
+### Firebase Configuration
+
+1. **Create Firebase Project**:
+   - Go to [Firebase Console](https://console.firebase.google.com/)
+   - Create a new project or use existing one
+   - Enable Authentication and Firestore
+
+2. **Enable Google Authentication**:
+   - In Firebase Console → Authentication → Sign-in method
+   - Enable Google provider
+   - Add your domain to authorized domains
+
+3. **Environment Variables**:
+   Create a `.env` file in the project root:
+   ```env
+   VITE_FIREBASE_API_KEY=your_api_key
+   VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
+   VITE_FIREBASE_PROJECT_ID=your_project_id
+   VITE_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
+   VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+   VITE_FIREBASE_APP_ID=your_app_id
+   VITE_FIREBASE_MEASUREMENT_ID=your_measurement_id
+   ```
+
+4. **Firestore Rules**:
+   Update your Firestore security rules to allow authenticated access:
+   ```javascript
+   rules_version = '2';
+   service cloud.firestore {
+     match /databases/{database}/documents {
+       match /users/{userId} {
+         allow read, write: if request.auth != null && request.auth.uid == userId;
+       }
+       match /sessions/{sessionId} {
+         allow read, write: if request.auth != null && resource.data.userId == request.auth.uid;
+       }
+       match /leaderboards/{type}/entries/{entryId} {
+         allow read: if true;
+         allow write: if request.auth != null;
+       }
+     }
+   }
+   ```
+
+### Authentication Features
+
+- **Google Sign-In**: Users can sign in with their Google account
+- **Anonymous Play**: Guest users can play without signing in
+- **Account Linking**: Anonymous users can link their Google account later
+- **Cloud Saves**: Game progress automatically syncs across devices
+- **Leaderboards**: Scores are tracked per user account
+- **Cross-Device Sync**: Continue playing on any device
+
+### Usage in Game
+
+- **Settings Menu**: Access authentication options in the Settings scene
+- **Automatic Sync**: Cloud saves happen automatically during gameplay
+- **Offline Support**: Game works offline, syncs when connection restored
+
 ## 🎮 Core Game Mechanics
 
 ### 1. Level-Based Part System (NEW!)
@@ -435,7 +498,7 @@ interface GameSession {
 ### Optional Extensions: "Follow the Fun"
 - [ ] Firebase integration (leaderboards, cloud saves)
 - [ ] Achievement system
-- [ ] Social features or sharing
+- [ ] Social features - score board
 - [ ] **Milestone**: Enhanced features that emerged organically
 
 ## 🎯 Success Metrics
@@ -497,6 +560,11 @@ sand-castle-game/
 │   │   └── translations/     # Translation files
 │   │       ├── en.ts         # English locale settings (minimal)
 │   │       └── ua.ts         # Ukrainian translations
+│   ├── components/            # Reusable UI components
+│   │   ├── Button.ts         # Button component with animations
+│   │   ├── Text.ts           # Responsive text component
+│   │   ├── UserButton.ts     # User profile display component
+│   │   └── ConfirmationDialog.ts # Confirmation dialog component
 │   ├── scenes/
 │   │   ├── MenuScene.ts      # Main menu
 │   │   ├── GameScene.ts      # Core gameplay
@@ -539,6 +607,7 @@ sand-castle-game/
     "baseUrl": "./src",
     "paths": {
       "@/*": ["*"],
+      "@/components/*": ["components/*"],
       "@/scenes/*": ["scenes/*"],
       "@/objects/*": ["objects/*"],
       "@/utils/*": ["utils/*"],
@@ -700,8 +769,10 @@ const isMoving = (part: CastlePartData) =>
 src/
 ├── main.ts                    # Entry point
 ├── config/                    # Game configuration
-│   ├── gameConfig.ts         # Phaser game config
-│   └── constants.ts          # Game constants
+│   ├── ColorConfig.ts        # Centralized color definitions
+│   ├── TextConfig.ts         # Centralized text definitions
+│   ├── gameConfig.ts         # Game-specific settings
+│   └── phaserConfig.ts       # Phaser engine settings
 ├── i18n/                      # Internationalization
 │   ├── index.ts              # Translation system core
 │   ├── detect.ts             # Language detection
@@ -710,10 +781,14 @@ src/
 │   ├── MenuScene.ts
 │   ├── GameScene.ts
 │   └── GameOverScene.ts
-├── objects/                   # Game objects (matches File Structure above)
+├── objects/                   # Game objects
 │   ├── CastlePart.ts
-│   ├── Castle.ts
 │   └── StabilityManager.ts
+├── components/                # Reusable UI components
+│   ├── Button.ts             # Button component with animations
+│   ├── Text.ts               # Responsive text component
+│   ├── UserButton.ts         # User profile display component
+│   └── ConfirmationDialog.ts # Confirmation dialog component
 ├── utils/                     # Utilities
 │   ├── AudioManager.ts
 │   ├── FirebaseConfig.ts
