@@ -32,6 +32,8 @@ sand-castle-game/
 │   ├── objects/              # Game object classes
 │   │   ├── CastlePart.ts     # Castle part physics and rendering
 │   │   └── StabilityManager.ts # Physics stability calculations
+│   ├── components/           # Reusable UI components
+│   │   └── UserButton.ts     # User profile display component
 │   ├── utils/                # Utility functions and helpers
 │   │   ├── AudioManager.ts   # Audio management with state persistence
 │   │   ├── PartUtils.ts      # Part spawning and sizing utilities
@@ -75,6 +77,10 @@ sand-castle-game/
 #### **Configuration**
 - `src/config/phaserConfig.ts` - Phaser engine settings (resolution, physics, etc.)
 - `src/config/gameConfig.ts` - Game-specific settings (levels, gameplay constants)
+
+#### **Components**
+- `src/components/` - Reusable UI components for consistent user interface
+- Components are self-contained with direct imports: `import { UserButton } from '@/components/UserButton'`
 
 #### **System Management**
 - `src/utils/SystemInitializer.ts` - Orchestrates all system startup

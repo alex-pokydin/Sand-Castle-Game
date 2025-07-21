@@ -560,6 +560,8 @@ sand-castle-game/
 │   │   └── translations/     # Translation files
 │   │       ├── en.ts         # English locale settings (minimal)
 │   │       └── ua.ts         # Ukrainian translations
+│   ├── components/            # Reusable UI components
+│   │   └── UserButton.ts     # User profile display component
 │   ├── scenes/
 │   │   ├── MenuScene.ts      # Main menu
 │   │   ├── GameScene.ts      # Core gameplay
@@ -602,6 +604,7 @@ sand-castle-game/
     "baseUrl": "./src",
     "paths": {
       "@/*": ["*"],
+      "@/components/*": ["components/*"],
       "@/scenes/*": ["scenes/*"],
       "@/objects/*": ["objects/*"],
       "@/utils/*": ["utils/*"],

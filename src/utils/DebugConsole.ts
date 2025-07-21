@@ -81,6 +81,37 @@ export function setupDebugConsole(game: Game): void {
   // === Firebase Debug Functions ===
   (window as any).debugFirebase = debugFirebase;
   (window as any).debugFirebaseService = debugFirebaseService;
+  
+  // === User Profile Debug Functions ===
+  (window as any).testUserButton = () => {
+    const currentScene = game.scene.getScene('MenuScene');
+    if (currentScene && (currentScene as any).userButton) {
+      console.log('👤 Testing user button...');
+      (currentScene as any).userButton.refreshAuthState();
+    } else {
+      console.log('❌ MenuScene not found or userButton not available');
+    }
+  };
+  
+  (window as any).hideUserButton = () => {
+    const currentScene = game.scene.getScene('MenuScene');
+    if (currentScene && (currentScene as any).userButton) {
+      console.log('👤 Hiding user button...');
+      (currentScene as any).userButton.hide();
+    } else {
+      console.log('❌ MenuScene not found or userButton not available');
+    }
+  };
+  
+  (window as any).showUserButton = () => {
+    const currentScene = game.scene.getScene('MenuScene');
+    if (currentScene && (currentScene as any).userButton) {
+      console.log('👤 Showing user button...');
+      (currentScene as any).userButton.show();
+    } else {
+      console.log('❌ MenuScene not found or userButton not available');
+    }
+  };
 
   // === Scene Debug Functions ===
   (window as any).debugSceneRegistry = () => {

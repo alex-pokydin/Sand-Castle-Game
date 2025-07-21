@@ -33,10 +33,10 @@ export class AuthUI {
     // Create auth state text
     const authStateResult = createResponsiveText(
       this.scene,
-      0,
+      -120,
       0,
       '',
-      TEXT_CONFIGS.STATS_MEDIUM
+      TEXT_CONFIGS.STATS_SMALL
     );
     this.authStateText = authStateResult.text;
     this.container.add(this.authStateText);

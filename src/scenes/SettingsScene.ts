@@ -740,7 +740,7 @@ export class SettingsScene extends BaseScene {
   private createBackButton(): void {
     this.createKidFriendlyButton(
       this.scale.width / 2,
-      this.scale.height * 0.75,
+      this.scale.height * 0.65,
       tSync('Back to Menu'),
       0xE74C3C, // Red
       0xEC7063,
